@@ -49,7 +49,7 @@ Unlike simple search tools, NG implements a specific curation philosophy focused
     **Logging Configuration (Optional):**
     By default, logs are output to `stderr` (visible in MCP Client logs). To save logs to a file:
     ```env
-    NAVIDROME_LOG_FILE=logs/navidrome_mcp.log
+    NAVIDROME_LOG_FILE=./logs/navidrome_mcp.log
     ```
 
 ## 🚀 Usage
