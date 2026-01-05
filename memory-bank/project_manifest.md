@@ -16,6 +16,11 @@ The goal is to move beyond simple "search and play" to complex, reasoned curatio
 
 4. **Divergence**: The system must be able to break the "Filter Bubble" by suggesting genres the user rarely listens to.
 
+## Licensing & Contribution
+
+- **License**: [MIT (Open Source)](../LICENSE).
+- **Social Contract**: Users are encouraged to attribute the work and contribute back improvements via PRs (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
+
 ## Architecture
 
 For a detailed breakdown of the MCP architecture, see [MCP Architecture & Workflow](mcp_architecture.md).

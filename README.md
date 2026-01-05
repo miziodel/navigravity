@@ -87,3 +87,11 @@ This will launch the MCP Inspector, which provides a web interface to test your 
 
 ---
 *Built with ❤️ for the self-hosted music community.*
+
+## 📜 License & Contributing
+
+This project is open-source under the **MIT License**.
+
+- **Freedom**: You are free to use, modify, and distribute this code.
+- **Our Request**: Please attribute the authors and consider contributing your changes back to the community via Pull Requests. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our open philosophy.
+
