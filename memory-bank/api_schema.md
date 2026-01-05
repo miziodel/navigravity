@@ -2,149 +2,77 @@
 
 This schema defines the tools available to the Antigravity Agent.
 
-## 🧠 Discovery & Search Tools
+## 🧠 Analysis & Stats (Unified)
 
-### `get_genres`
+### `analyze_library`
 
-**Purpose**: Lists all available genres in the library with track and album counts. Useful for mapping the musical landscape.
-
-**Arguments**: None.
-
-**Returns**: List of objects `{"name": "Jazz", "tracks": 500, "albums": 50}`.
-
-### `analyze_library_composition`
-
-**Purpose**: "Cold" inventory analysis. Returns genre distribution by volume (songs/albums). Useful for understanding what the user *owns* vs what they play.
-
-**Arguments**: None.
-
-**Returns**: JSON with `total_stats` (songs, albums, genres) and `composition` (Top 30 genres by volume).
-
-### `get_library_pillars`
-
-**Purpose**: Identifies "Canonical" artists by Album Count. Useful for separating "Classics" (library backbone) from "Current Obsessions" (high velocity).
+**Purpose**: The central tool for understanding the library's content and user habits.
 
 **Arguments**:
+- `mode` (string):
+    - `"composition"`: Returns genre distribution and total stats (Cold Analysis). Use this to see *what* is in the library.
+    - `"pillars"`: Identifies core artists by Album Count (Canonical Analysis). Use this to find the "backbone" of the collection.
+    - `"taste_profile"`: Analyzes recent/frequent/starred for top artists & eras (Warm Analysis). Use this to model the user's preferences.
 
-- `limit` (int, default=50).
+**Returns**: JSON structure varying by mode.
 
-**Returns**: List of objects `{"name": "Pink Floyd", "album_count": 28}`.
+### `batch_check_library_presence`
 
-### `explore_genre`
-
-**Purpose**: Deep dive into a specific genre to find dominant artists and albums.
-
-**Arguments**:
-
-- `genre` (string).
-- `limit` (int, default=50).
-
-**Returns**: JSON with `unique_artists`, `top_artists` (with album counts).
-
-### `get_genre_tracks`
-
-**Purpose**: Fetches random tracks for a specific genre.
+**Purpose**: Verification tool to find gaps (Missing Music) in bulk.
 
 **Arguments**:
+- `query` (List[Dict]): `[{"artist": "Name", "album": "Title"}, ...]`
 
-- `genre` (string).
-- `limit` (int, default=100).
+## 🔍 Discovery & Search
 
 ### `get_smart_candidates`
 
 **Purpose**: Statistical discovery logic (The "Magic List" engine).
 
 **Arguments**:
-
 - `mode` (string):
-
     - `"rediscover"`: High play count, not played in > 1 year.
     - `"forgotten_favorites"`: Starred/High rated, not played in > 6 months.
     - `"hidden_gems"`: Play count is 0 (Library-wide).
     - `"unheard_favorites"`: Play count is 0 (From Starred Albums).
     - `"recently_added"`: Newest albums.
-    - `"most_played"`: Top tracks from frequent albums. Supports Top 30+.
-    - `"lowest_rated"`: Tracks with 1-2 stars. Performs a **Deep Scan** (2000+ items) to find rare candidates.
-
-- `limit` (int, default=50): Number of tracks to return.
-
-### `get_divergent_recommendations`
-
-**Purpose**: Breaks the filter bubble. Finds genres the user never listens to.
-
-**Arguments**:
-
-- `limit` (int, default=20).
+    - `"most_played"`: Top tracks from frequent albums.
+    - `"lowest_rated"`: Tracks with 1-2 stars (Deep Scan).
+    - `"divergent"`: Tracks from genres rarely listened to (Breaks filter bubble).
+- `limit` (int, default=50).
 
 ### `search_music_enriched`
 
 **Purpose**: Keyword search with technical metadata.
 
 **Arguments**:
-
 - `query` (string).
 - `limit` (int, default=20).
 
-**Returns**: JSON with `bitrate`, `year`, `last_played`, `play_count`.
+### `get_genres` / `explore_genre` / `get_genre_tracks`
 
-### `get_sonic_flow`
+**Purpose**: Standard genre-based exploration.
 
-**Purpose**: Finds tracks that match the BPM or Era of a seed track.
+## 🎧 Curation & Management (Unified)
 
-**Arguments**:
+### `manage_playlist`
 
-- `seed_track_id` (string).
-- `limit` (int, default=20).
-
-### `artist_radio`
-
-**Purpose**: Generates a mix based on an artist and their similar artists.
+**Purpose**: Universal tool for creating, updating, and retrieving playlists and mood tags.
 
 **Arguments**:
-
-- `artist_name` (string).
-
-## 🏷️ Mood & Tagging Tools (Virtual Tags)
-
-### `set_track_mood`
-
-**Purpose**: Tags a track with a mood by adding it to a System:Mood:{Name} playlist.
-
-**Arguments**:
-
-- `track_id` (string).
-- `mood` (string).
-
-### `get_tracks_by_mood`
-
-**Purpose**: Retrieves tracks previously tagged with a mood.
-
-**Arguments**:
-
-- `mood` (string).
-- `limit` (int, default=20).
-
-## ⚖️ Quality Control & Execution
+- `name` (string): Playlist name.
+    - **Convention**: For virtual mood tags, use `NG:Mood:{MoodName}` (e.g., `NG:Mood:Focus`).
+- `operation` (string):
+    - `"create"`: Replaces or creates a playlist with the given tracks.
+    - `"append"`: Adds tracks to an existing playlist (or creates it).
+    - `"get"`: Returns the tracks in a playlist (random shuffled subset).
+- `track_ids` (List[str]): Required for `create` and `append`.
 
 ### `assess_playlist_quality`
 
-**Purpose**: (The "Bliss" Logic) Analyzes a list of candidate Song IDs for diversity.
+**Purpose**: (The "Bliss" Logic) Analyzes a list of candidate Song IDs for diversity. **MANDATORY** check before creation.
 
 **Arguments**:
-
 - `song_ids` (List[string]).
 
-**Returns**: JSON containing:
-
-- `diversity_score` (0.0 to 1.0)
-- `most_repetitive_artist` (Object with count and warning boolean)
-- `genres_detected` (List)
-
-### `create_playlist`
-
-**Purpose**: Finalizes the action by saving the playlist to Navidrome. **Idempotent**: Replaces existing playlists with the same name to prevent duplicates.
-
-**Arguments**:
-
-- `name` (string).
-- `song_ids` (List[string]).
+**Returns**: JSON with `diversity_score` and repetition warnings.

@@ -198,137 +198,107 @@ def _fetch_albums(criteria: str, size: int = 50, genre: str = None) -> List[Dict
 
 @mcp.tool()
 @log_execution
-def get_library_pillars(limit: int = 50) -> str:
+def analyze_library(mode: str = "composition") -> str:
     """
-    Identifies 'Library Pillars' - artists with the most albums.
-    Useful for finding 'Canonical' artists distinct from recent listening habits.
-    """
-    conn = get_conn()
-    try:
-        # getArtists returns the index (letters), need to flatten or use getIndexes if supported,
-        # but pure Subsonic often uses getArtists for the ID3 list.
-        # However, getArtists returns a list of indices (A, B, C...).
-        # A more direct way for "Top Artists by Album Count" might not exist directly without scanning.
-        # But `getArtists` usually returns the full list in lighter clients.
-        # Let's try `getArtists` (actually getIndexes in Subsonic spec, but commonly mapped).
-        # Wrapper might cache.
-        
-        # NOTE: libsonic's getArtists() usually maps to getIndexes.
-        # Structure: {'artists': {'index': [...]}} OR {'indexes': {'index': [...]}}
-        
-        res = conn.getArtists()
-        all_artists = []
-        
-        # Normalize response structure
-        root = res.get('artists') or res.get('indexes')
-        
-        if root and 'index' in root:
-            for idx in root['index']:
-                if 'artist' in idx:
-                    all_artists.extend(idx['artist'])
-                    
-        # Sort by albumCount
-        # Note: 'albumCount' might be varying by server version availability in this endpoint.
-        # If missing, we might have to rely on something else, but standard Subsonic sends it.
-        
-        all_artists.sort(key=lambda x: int(x.get('albumCount', 0)), reverse=True)
-        
-        pillars = []
-        for a in all_artists[:limit]:
-            pillars.append({
-                "name": a.get('name'),
-                "album_count": int(a.get('albumCount', 0)),
-                "id": a.get('id')
-            })
-            
-        return json.dumps(pillars, indent=2)
-    except Exception as e: return str(e)
-
-
-@mcp.tool()
-@log_execution
-def analyze_library_composition() -> str:
-    """
-    Analyzes the library inventory (Cold Analysis).
-    Returns genre distribution by song count and album count.
+    Analyzes the library inventory and user stats.
+    
+    Args:
+        mode: The type of analysis to perform.
+            - 'composition': Returns genre distribution and total stats (Cold Analysis).
+            - 'pillars': Identifies core artists (Album Count) (Canonical Analysis).
+            - 'taste_profile': Analyzes recent/frequent/starred for top artists & eras (Warm Analysis).
     """
     conn = get_conn()
     try:
-        # Get all genres
-        res = conn.getGenres()
-        genres = res.get('genres', {}).get('genre', [])
-        
-        # Sort by song count
-        genres.sort(key=lambda x: x.get('songCount', 0), reverse=True)
-        
-        # Calculate totals
-        total_songs = sum(g.get('songCount', 0) for g in genres)
-        total_albums = sum(g.get('albumCount', 0) for g in genres)
-        
-        # Format top 30 genres
-        top_genres = []
-        for g in genres[:30]:
-            top_genres.append({
-                "name": g.get('value'),
-                "song_count": g.get('songCount'),
-                "album_count": g.get('albumCount'),
-                "percentage": round((g.get('songCount', 0) / total_songs * 100), 2) if total_songs > 0 else 0
-            })
+        if mode == "composition":
+            # Get all genres
+            res = conn.getGenres()
+            genres = res.get('genres', {}).get('genre', [])
             
-        return json.dumps({
-            "total_stats": {
-                "songs": total_songs,
-                "albums": total_albums,
-                "genres": len(genres)
-            },
-            "composition": top_genres
-        }, indent=2)
-    except Exception as e: return str(e)
-
-
-@mcp.tool()
-@log_execution
-def analyze_user_taste_profile() -> str:
-    """Analyzes library stats to generate a 'Taste Profile' (Top Artists, Genres, Eras)."""
-    conn = get_conn()
-    try:
-        # 1. Fetch Frequent & Recent Albums for active taste
-        freq = _fetch_albums("frequent", size=100)
-        recent = _fetch_albums("newest", size=100)
-        starred = _fetch_albums("starred", size=100)
-
-        
-        # Combine sources (weighted implicitly by frequency of appearance if we merged, 
-        # but here we just want a broad sample)
-        combined = freq + recent + starred
-        
-        artists = []
-        genres = []
-        years = []
-        
-        for alb in combined:
-            if alb.get('artist'): artists.append(alb['artist'])
-            if alb.get('genre'): genres.append(alb['genre'])
-            if alb.get('year'): years.append(alb['year'])
+            # Sort by song count
+            genres.sort(key=lambda x: x.get('songCount', 0), reverse=True)
             
-        # Stats
-        top_artists = [a[0] for a in Counter(artists).most_common(50)]
-        top_genres = [g[0] for g in Counter(genres).most_common(20)]
-        
-        # Era calculation
-        eras = []
-        if years:
-            # Simple decade binning
-            decades = [int(y)//10*10 for y in years if str(y).isdigit()]
-            top_decades = [f"{d}s" for d, _ in Counter(decades).most_common(3)]
-            eras = top_decades
+            # Calculate totals
+            total_songs = sum(g.get('songCount', 0) for g in genres)
+            total_albums = sum(g.get('albumCount', 0) for g in genres)
             
-        return json.dumps({
-            "top_artists": top_artists,
-            "top_genres": top_genres,
-            "favorite_eras": eras,
-            "total_albums_analyzed": len(combined)
-        }, indent=2)
+            # Format top 30 genres
+            top_genres = []
+            for g in genres[:30]:
+                top_genres.append({
+                    "name": g.get('value'),
+                    "song_count": g.get('songCount'),
+                    "album_count": g.get('albumCount'),
+                    "percentage": round((g.get('songCount', 0) / total_songs * 100), 2) if total_songs > 0 else 0
+                })
+                
+            return json.dumps({
+                "total_stats": {
+                    "songs": total_songs,
+                    "albums": total_albums,
+                    "genres": len(genres)
+                },
+                "composition": top_genres
+            }, indent=2)
+
+        elif mode == "pillars":
+            # NOTE: libsonic's getArtists() usually maps to getIndexes.
+            response = conn.getArtists()
+            all_artists = []
+            
+            # Subsonic API can return 'artists' or 'indexes' root
+            artists_root = response.get('artists') or response.get('indexes')
+            if artists_root and 'index' in artists_root:
+                for index_entry in artists_root['index']:
+                    if 'artist' in index_entry:
+                        all_artists.extend(index_entry['artist'])
+                        
+            all_artists.sort(key=lambda x: int(x.get('albumCount', 0)), reverse=True)
+            
+            pillars = []
+            for a in all_artists[:50]:
+                pillars.append({
+                    "name": a.get('name'),
+                    "album_count": int(a.get('albumCount', 0)),
+                    "id": a.get('id')
+                })
+            return json.dumps(pillars, indent=2)
+
+        elif mode == "taste_profile":
+            freq = _fetch_albums("frequent", size=100)
+            recent = _fetch_albums("newest", size=100)
+            starred = _fetch_albums("starred", size=100)
+            
+            combined = freq + recent + starred
+            
+            artists = []
+            genres = []
+            years = []
+            
+            for alb in combined:
+                if alb.get('artist'): artists.append(alb['artist'])
+                if alb.get('genre'): genres.append(alb['genre'])
+                if alb.get('year'): years.append(alb['year'])
+                
+            top_artists = [a[0] for a in Counter(artists).most_common(50)]
+            top_genres = [g[0] for g in Counter(genres).most_common(20)]
+            
+            eras = []
+            if years:
+                decades = [int(y)//10*10 for y in years if str(y).isdigit()]
+                top_decades = [f"{d}s" for d, _ in Counter(decades).most_common(3)]
+                eras = top_decades
+                
+            return json.dumps({
+                "top_artists": top_artists,
+                "top_genres": top_genres,
+                "favorite_eras": eras,
+                "total_albums_analyzed": len(combined)
+            }, indent=2)
+        
+        else:
+            return f"Unknown mode: {mode}"
+
     except Exception as e: return str(e)
 
 @mcp.tool()
@@ -359,27 +329,29 @@ def batch_check_library_presence(query: List[Dict[str, str]]) -> str:
                 # Specific album search
                 # Quote the query to ensure better exact matching behavior if supported,
                 # but search3 is "smart". Composite string "Artist Album" usually works well.
-                q = f'"{artist}" "{album}"'
-                res = conn.search3(q, albumCount=1)
+                query_str = f'"{artist}" "{album}"'
+                search_response = conn.search3(query_str, albumCount=1)
                 
                 # Verify exact matches in returned albums
                 found = False
-                if 'album' in res.get('searchResult3', {}):
-                    for a in res['searchResult3']['album']:
+                search_data = search_response.get('searchResult3', {})
+                if 'album' in search_data:
+                    for alb_record in search_data['album']:
                         # Loose string match to tolerate "The Wall" vs "Wall"
-                        if artist.lower() in a.get('artist', '').lower() and \
-                           album.lower() in a.get('title', '').lower():
+                        if artist.lower() in alb_record.get('artist', '').lower() and \
+                           album.lower() in alb_record.get('title', '').lower():
                             found = True
                             break
                 status["present"] = found
                 
             else:
                 # Artist only search
-                res = conn.search3(f'"{artist}"', artistCount=1)
+                search_response = conn.search3(f'"{artist}"', artistCount=1)
                 found = False
-                if 'artist' in res.get('searchResult3', {}):
-                    for a in res['searchResult3']['artist']:
-                        if artist.lower() == a.get('name', '').lower():
+                search_data = search_response.get('searchResult3', {})
+                if 'artist' in search_data:
+                    for art_record in search_data['artist']:
+                        if artist.lower() == art_record.get('name', '').lower():
                             found = True
                             break
                 status["present"] = found
@@ -491,6 +463,7 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
       - rediscover: Old favorites
       - hidden_gems: Never played
       - unheard_favorites: Unplayed tracks from starred albums
+      - divergent: Tracks from genres rarely listened to
     """
     conn = get_conn()
     try:
@@ -644,6 +617,22 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
                         else:
                             artists.remove(art)
                             
+        elif mode == "divergent":
+            # Logic from former get_divergent_recommendations
+            freq = _fetch_albums("frequent", size=20)
+            top_genres = {a.get('genre') for a in freq if a.get('genre')}
+            all_genres = [g['value'] for g in conn.getGenres().get('genres', {}).get('genre', [])]
+            divergent = list(set(all_genres) - top_genres)
+            
+            if not divergent:
+                 return "No divergence found."
+            
+            random.shuffle(divergent)
+            for g in divergent[:3]:
+                res = conn.getRandomSongs(size=5, genre=g)
+                if 'song' in res.get('randomSongs', {}):
+                    candidates.extend([_format_song(s) for s in res['randomSongs']['song']])
+
         # Shuffle final result ONLY if not sorted by logic above
         if mode not in ["most_played", "top_rated"]:
             random.shuffle(candidates)
@@ -653,104 +642,60 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
         logger.error(f"Error in get_smart_candidates mode={mode}: {e}", exc_info=True)
         return str(e)
 
+
+
 @mcp.tool()
 @log_execution
-def get_divergent_recommendations(limit: int = 20) -> str:
-    """Returns tracks from genres rarely listened to."""
+def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = None) -> str:
+    """
+    Manages playlists and moods.
+    
+    Args:
+        name: Playlist name. For moods, use convention 'NG:Mood:{MoodName}'.
+        operation: 
+            - 'create': Replaces/Creates playlist with track_ids.
+            - 'append': Adds track_ids to playlist (creates if missing).
+            - 'get': Returns tracks in playlist.
+        track_ids: List of track IDs (required for create/append).
+    """
     conn = get_conn()
     try:
-        freq = _fetch_albums("frequent", size=20)
-
-        top_genres = {a.get('genre') for a in freq if a.get('genre')}
-
-        all_genres = [g['value'] for g in conn.getGenres().get('genres', {}).get('genre', [])]
-        divergent = list(set(all_genres) - top_genres)
-        
-        if not divergent: return "No divergence found."
-        random.shuffle(divergent)
-        candidates = []
-        for g in divergent[:3]:
-            res = conn.getRandomSongs(size=5, genre=g)
-            if 'song' in res.get('randomSongs', {}):
-                candidates.extend([_format_song(s) for s in res['randomSongs']['song']])
-        return json.dumps(candidates[:limit], indent=2)
-    except Exception as e: return str(e)
-
-@mcp.tool()
-@log_execution
-def artist_radio(artist_name: str) -> str:
-    """Mixes artist and similar artists."""
-    conn = get_conn()
-    try:
-        search = conn.search3(artist_name, artistCount=1)
-        if not search.get('artist'): return "Artist not found"
-        seed_id = search['artist'][0]['id']
-        mix = []
-        # Logic to fetch top songs and similar artists would go here (abbreviated for file size)
-        # Assuming implementation from previous turns
-        return json.dumps([], indent=2) 
-    except Exception as e: return str(e)
-
-@mcp.tool()
-@log_execution
-def search_music_enriched(query: str, limit: int = 20) -> str:
-    """Standard search with full metadata."""
-    conn = get_conn()
-    res = conn.search3(query, songCount=limit)
-    out = []
-    if 'song' in res: out = [_format_song(s) for s in res['song']]
-    return json.dumps(out, indent=2)
-
-@mcp.tool()
-@log_execution
-def get_sonic_flow(seed_track_id: str, limit: int = 20) -> str:
-    """Finds tracks matching BPM/Year."""
-    conn = get_conn()
-    try:
-        seed = conn.getSong(seed_track_id).get('song')
-        if not seed: return "Seed not found"
-        # Logic to find matching BPM/Year from random pool (abbreviated)
-        return json.dumps([], indent=2)
-    except Exception as e: return str(e)
-
-# --- TOOLS: MOOD & VIRTUAL TAGS ---
-
-@mcp.tool()
-@log_execution
-def set_track_mood(track_id: str, mood: str) -> str:
-    """Adds track to System:Mood:{Mood} playlist."""
-    conn = get_conn()
-    pl_name = f"System:Mood:{mood.capitalize()}"
-    try:
+        # Find playlist by name
         playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
-        pl_id = next((p['id'] for p in playlists if p['name'] == pl_name), None)
+        pl_id = next((p['id'] for p in playlists if p['name'] == name), None)
         
-        if not pl_id:
-            conn.createPlaylist(name=pl_name, songIds=[track_id])
-            return f"Created mood '{mood}' and added track."
-        
-        conn.updatePlaylist(pl_id, songIdsToAdd=[track_id])
-        return f"Added to mood '{mood}'."
-    except Exception as e: return str(e)
+        if operation == "get":
+            if not pl_id: return "[]"
+            entries = conn.getPlaylist(pl_id).get('playlist', {}).get('entry', [])
+            random.shuffle(entries)
+            # Limit default return to 20 for safety
+            return json.dumps([_format_song(s) for s in entries[:50]], indent=2)
 
-@mcp.tool()
-@log_execution
-def get_tracks_by_mood(mood: str, limit: int = 20) -> str:
-    """Gets tracks from mood playlist."""
-    conn = get_conn()
-    pl_name = f"System:Mood:{mood.capitalize()}"
-    try:
-        playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
-        pl_id = next((p['id'] for p in playlists if p['name'] == pl_name), None)
-        if not pl_id: return "[]"
-        
-        entries = conn.getPlaylist(pl_id).get('playlist', {}).get('entry', [])
-        random.shuffle(entries)
-        return json.dumps([_format_song(s) for s in entries[:limit]], indent=2)
-    except Exception as e: return str(e)
+        if not track_ids:
+            return "Error: track_ids required for create/append."
 
-# --- TOOLS: QUALITY & EXECUTION ---
+        if operation == "create":
+            if pl_id:
+                # Subsonic API might allow duplicates, we enforce unique name by ID
+                conn.deletePlaylist(pl_id)
+                logger.info(f"Deleted existing playlist: {name} (ID: {pl_id})")
+            
+            conn.createPlaylist(name=name, songIds=track_ids)
+            return f"Created playlist '{name}' with {len(track_ids)} tracks."
 
+        elif operation == "append":
+            if not pl_id:
+                 conn.createPlaylist(name=name, songIds=track_ids)
+                 return f"Created new playlist '{name}' with {len(track_ids)} tracks (append mode)."
+            
+            conn.updatePlaylist(pl_id, songIdsToAdd=track_ids)
+            return f"Appended {len(track_ids)} tracks to '{name}'."
+            
+        return f"Unknown operation: {operation}"
+
+    except Exception as e:
+        logger.error(f"Error in manage_playlist {name}: {e}")
+        return str(e)
 @mcp.tool()
 @log_execution
 def assess_playlist_quality(song_ids: List[str]) -> str:
@@ -777,32 +722,26 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
         }, indent=2)
     except Exception as e: return str(e)
 
+
 @mcp.tool()
 @log_execution
-def create_playlist(name: str, song_ids: List[str]) -> str:
+def search_music_enriched(query: str, limit: int = 20) -> str:
+    """Standard search with full metadata."""
     conn = get_conn()
-    try:
-        # Check for existing playlists with the same name
-        playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
+    search_response = conn.search3(query, songCount=limit)
+    formatted_results = []
+    
+    search_results_container = search_response.get('searchResult3', {})
+    if 'song' in search_results_container: 
+        songs_list = search_results_container['song']
+        # search3 can return a single dict instead of a list if only 1 result found in some versions,
+        # but libsonic usually normalizes.
+        if isinstance(songs_list, dict): 
+            songs_list = [songs_list]
+        formatted_results = [_format_song(s) for s in songs_list]
         
-        # Subsonic API might return multiple if they exist, or just one.
-        # We want to remove ALL old versions to enforce a clean slate for this "managed" playlist.
-        existing_matches = [p for p in playlists if p['name'] == name]
-        
-        if existing_matches:
-            for pl in existing_matches:
-                conn.deletePlaylist(pl['id'])
-                logger.info(f"Deleted existing playlist: {name} (ID: {pl['id']})")
-                
-        # Create fresh
-        conn.createPlaylist(name=name, songIds=song_ids)
-        
-        action = "Replaced" if existing_matches else "Created"
-        return f"{action} playlist '{name}' with {len(song_ids)} tracks."
-        
-    except Exception as e:
-        logger.error(f"Error creating playlist {name}: {e}")
-        return str(e)
+    return json.dumps(formatted_results, indent=2)
+
 
 if __name__ == "__main__":
     mcp.run()

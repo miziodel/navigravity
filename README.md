@@ -82,24 +82,25 @@ We provide a specialized guide for the Large Language Models interacting with th
 
 The agent has access to the following tools:
 
--   **Discovery**:
-    -   `get_genres`: Lists all library genres with track counts.
-    -   `explore_genre`: Deep dive into a specific genre (artists, albums).
-    -   `get_genre_tracks`: Fetches random tracks from a genre.
-    -   `get_smart_candidates`: Statistical discovery (Rediscover, Hidden Gems, Unheard Favorites, Lowest Rated).
-    -   `get_divergent_recommendations`: Suggests genres you rarely listen to.
-    -   `search_music_enriched`: Metadata-rich search.
-    -   `artist_radio`: Smart mixing of artist/similar tracks.
-    -   `get_sonic_flow`: BPM/Linkage matching.
-    -   `analyze_user_taste_profile`: **NEW** Generates "Taste Profile" (Top Artists/Genres/Eras) to ground curation.
-    -   `batch_check_library_presence`: **NEW** Verification tool to find gaps (Missing Music) in bulk.
-    -   `get_library_pillars`: **NEW** Identifies canonical artists (Library Backbone).
-    -   `analyze_library_composition`: **NEW** Genre distribution analysis.
+-   **Unified Analysis**:
+    -   `analyze_library(mode)`: One tool to rule them all.
+        -   `mode='composition'`: Genre distribution & library stats (Cold Analysis).
+        -   `mode='pillars'`: Identifies canonical artists by album count.
+        -   `mode='taste_profile'`: Analyzes recent/frequent/starred for user habits.
+    -   `batch_check_library_presence`: Verification tool to find gaps (Missing Music) in bulk.
 
--   **Curation**:
-    -   `set_track_mood` / `get_tracks_by_mood`: Manage Virtual Tags.
-    -   `assess_playlist_quality`: The "Bliss" check logic.
-    -   `create_playlist`: Final execution step.
+-   **Discovery & Recommendation**:
+    -   `get_smart_candidates(mode)`: Statistical discovery engine.
+        -   Modes: `rediscover`, `hidden_gems`, `unheard_favorites`, `lowest_rated`, `divergent` (breaks filter bubble).
+    -   `get_genres` / `explore_genre`: Deep dive into specific genres.
+    -   `get_genre_tracks`: Fetches random tracks from a genre.
+    -   `search_music_enriched`: Metadata-rich search.
+
+-   **Curation & Management**:
+    -   `manage_playlist(name, operation, track_ids)`:
+        -   Create/Replace customized playlists.
+        -   **Mood Convention**: Use `NG:Mood:{MoodName}` (e.g., `NG:Mood:Focus`) to create virtual mood tags.
+    -   `assess_playlist_quality`: The "Bliss" check logic (diversity/repetition).
 
 ---
 

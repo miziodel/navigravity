@@ -23,7 +23,7 @@ When opening an issue, please include:
 1.  **Navidrome Version**: (e.g., `0.52.0`, Docker or Native).
 2.  **MCP Client**: (Claude Desktop, Zed, Cursor, Antigravity, etc.).
 3.  **Logs**:
-    *   Please enable file logging by setting `NAVIDROME_LOG_FILE=logs/debug.log` in your `.env`.
+    *   Please enable file logging by setting `NAVIDROME_LOG_FILE=./logs/debug.log` in your `.env`.
     *   **Attach this log file** to your issue. Screenshots of the client console are often insufficient.
 
 ### 🧪 Feature Requests (The "Bliss" Philosophy)
