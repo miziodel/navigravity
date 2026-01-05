@@ -4,6 +4,7 @@
 from mcp.server.fastmcp import FastMCP
 import libsonic
 import os
+import sys
 import json
 import random
 import datetime
@@ -35,19 +36,50 @@ logger = logging.getLogger("navidrome_mcp")
 logger.setLevel(logging.INFO)
 
 # File Handler (JSON) - Writable by user running the script
-# Ensure logs directory exists relative to project root
-project_root = Path(__file__).parent.parent
-log_dir = project_root / "logs"
-log_dir.mkdir(exist_ok=True)
+# --- LOGGING SETUP ---
+logger = logging.getLogger("navidrome_mcp")
+logger.setLevel(logging.INFO)
 
-logHandler = logging.FileHandler(log_dir / "navidrome_mcp.log")
+# Formatter
 formatter = jsonlogger.JsonFormatter(
     "%(asctime)s %(levelname)s %(name)s %(message)s",
     rename_fields={"levelname": "level", "asctime": "timestamp"},
     datefmt="%Y-%m-%dT%H:%M:%SZ"
 )
-logHandler.setFormatter(formatter)
-logger.addHandler(logHandler)
+
+# 1. Standard Error Handler (Default / Cloud Native)
+# This ensures logs are always visible to the MCP Client (like Claude Desktop)
+# without requiring write permissions to the file system.
+stderr_handler = logging.StreamHandler(sys.stderr)
+stderr_handler.setFormatter(formatter)
+logger.addHandler(stderr_handler)
+
+# 2. Optional File Handler (User Configured)
+# If NAVIDROME_LOG_FILE is set in .env, we also log to that file.
+# Useful for persistent debugging.
+log_file_path = os.getenv("NAVIDROME_LOG_FILE")
+
+if log_file_path:
+    try:
+        # Resolve path relative to project root if it's not absolute
+        # We assume the user creates the directory or it exists.
+        log_path = Path(log_file_path)
+        if not log_path.is_absolute():
+            # Fallback assumption: relative to where the script is run (usually project root)
+            # or relative to project_root if defined
+            project_root = Path(__file__).parent.parent
+            log_path = project_root / log_path
+
+        # Ensure directory exists
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.info(f"Logging to file enabled: {log_path}", extra={"action": "startup_log_config"})
+    except Exception as e:
+        # Don't crash if file logging fails, just warn to stderr
+        logger.error(f"Failed to setup file logging: {e}", extra={"action": "startup_log_error"})
 
 # Metadata capture decorator
 def log_execution(func):

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "navigravity"
+version = "0.1.1"
+description = "NaviGravity: An Agentic MCP Server for Navidrome music curation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "Maurizio Delmonte"}
+]
+dependencies = [
+    "mcp[cli]",
+    "py-sonic",
+    "python-dotenv",
+    "python-json-logger"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-mock"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

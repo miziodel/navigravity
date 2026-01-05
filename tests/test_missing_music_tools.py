@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import logging
+import pytest
 
 # Add project root to path so we can import src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -15,33 +16,44 @@ logging.basicConfig(level=logging.INFO)
 def test_analyze_taste():
     print("\n--- Testing analyze_user_taste_profile ---")
     result = analyze_user_taste_profile()
+    
+    # Assert result is not None/Empty
+    assert result, "Result should not be empty"
+    
     try:
         data = json.loads(result)
+        # Assert expected keys exist
+        assert "top_artists" in data, "Should return top_artists"
+        assert "top_genres" in data, "Should return top_genres"
         print("Success! Keys found:", data.keys())
-        # print("Top Artists:", data.get("top_artists")[:5])
-        return True
+    except json.JSONDecodeError as e:
+        pytest.fail(f"Failed to parse JSON result: {result}. Error: {e}")
     except Exception as e:
-        print("Failed to parse result:", result)
-        print("Error:", e)
-        return False
+        pytest.fail(f"Unexpected error: {e}")
 
 def test_batch_check():
     print("\n--- Testing batch_check_library_presence ---")
     query = [{"artist": "Pink Floyd", "album": "The Dark Side of the Moon"}, {"artist": "The Fake Band 12345"}]
     result = batch_check_library_presence(query)
+    
     try:
         data = json.loads(result)
+        assert isinstance(data, list), "Result should be a list"
+        assert len(data) == 2, "Should return 2 results"
+        
+        # Verify first result structure
+        first_item = data[0]
+        assert "artist" in first_item
+        assert "present" in first_item
+        
         print("Success! Results verified.")
-        return True
     except Exception as e:
-        print("Failed:", e)
-        return False
+        pytest.fail(f"Failed: {e}")
 
 def test_smart_candidates():
     print("\n--- Testing get_smart_candidates ---")
     
     modes = ["most_played", "top_rated", "lowest_rated", "rediscover"]
-    success_count = 0
     
     for mode in modes:
         print(f"\n>> Testing mode: {mode}")
@@ -49,6 +61,9 @@ def test_smart_candidates():
         try:
             data = json.loads(result)
             print(f"   Received {len(data)} candidates")
+            
+            assert isinstance(data, list), "Should return a list of candidates"
+            
             if data:
                 print(f"   First item: {data[0].get('title')} - {data[0].get('artist')}")
                 # Validation Logic
@@ -58,14 +73,12 @@ def test_smart_candidates():
                 elif mode == "top_rated":
                     item = data[0]
                     is_starred = item.get('starred')
-                    is_rated = item.get('userRating', 0) >= 3 # Note: userRating might not be in formatted output unless we add it
-                    # We need to verify logic, but _format_song might filter keys. 
-                    # Let's trust visual check or update _format_song if needed for debugging.
+                    is_rated = item.get('userRating', 0) >= 3 
                     print(f"   ℹ️ Item metadata: Starred={is_starred}, PlayCount={item.get('play_count')}")
-                    assert is_starred or item.get('play_count') > 0, "Top rated should be starred or popular" 
+                    # Flexible assertion: Starred OR popular (heuristic fallback)
+                    assert is_starred or item.get('play_count') > 0, "Top rated should be starred or popular"
                     print("   ✅ Rating heuristic passed")
                 elif mode == "lowest_rated":
-                    # Might be empty if user is positive!
                     if data:
                         print("   ⚠️ Found lowest rated content!")
                     else:
@@ -73,21 +86,7 @@ def test_smart_candidates():
             else:
                 print("   ℹ️ No data returned (might be valid for empty stats)")
                 
-            success_count += 1
         except Exception as e:
-            print(f"   ❌ Failed {mode}: {e}")
-            
-    return success_count == len(modes)
+             pytest.fail(f"   ❌ Failed {mode}: {e}")
 
-if __name__ == "__main__":
-    t1 = test_analyze_taste()
-    t2 = test_batch_check()
-    t3 = test_smart_candidates()
-    
-    if t1 and t2 and t3:
-        print("\n✅ All tests passed!")
-        sys.exit(0)
-    else:
-        print("\n❌ Tests failed!")
-        sys.exit(1)
 
