@@ -21,6 +21,23 @@ Gather **3x to 5x** the number of tracks requested. You need a surplus to allow 
     *   `get_divergent_recommendations()` for spice.
     *   `get_genre_tracks('Deep House')` for volume.
 
+## 3. Analytics & Discovery Tools
+
+### `analyze_library_composition`
+- **Purpose**: "Cold" inventory analysis.
+- **Use When**: The user wants to know what they *own* vs what they play. Returns genre distribution by volume.
+- **Example**: "What is the dominant genre in my library?"
+
+### `get_library_pillars`
+- **Purpose**: Identify "Canonical" artists.
+- **Use When**: Finding the "backbone" of the collection (Highest Album Counts). Useful for separating "Classics" from "Current Obsessions".
+- **Example**: "Who are the main artists in my collection?"
+
+### `get_smart_candidates` (Enhanced)
+- **Updated Modes**:
+  - `lowest_rated`: Now performs a Deep Scan (2000+ items sampled) to find rare low-rated tracks.
+  - `most_played`: Supports Top 30+ results.
+
 ### 2. The "Bliss" Quality Gate (Filter)
 **MANDATORY STEP**: Before saving, you MUST run `assess_playlist_quality`.
 *   **Check**: Is `diversity_score` < 0.6? (Too repetitive).
@@ -59,6 +76,16 @@ Only when the list passes the Quality Gate do you call `create_playlist`.
 1.  **Map**: Call `get_genres()` to see what tags actually exist (e.g., you might find "IDM", "Glitch", "Ambient Techno" instead of just "Electronic").
 2.  **Survey**: Use `explore_genre('IDM')` to see if there are reputable artists or just noise.
 3.  **Mine**: Once confident, use `get_genre_tracks` or `get_smart_candidates` filtered by these specific logical genres to build the playlist.
+
+### 🧩 The "Gap Analysis" Pattern
+**Use Case**: "What is missing from my library?" or "Suggest albums I should have".
+**Strategy**:
+1.  **Introspect**: Call `analyze_user_taste_profile()` to understand the user's "Ground Truth" (e.g., "Loves 70s Prog Rock").
+2.  **Hypothesize (Internal Monologue)**: "Given they love Pink Floyd and Genesis, they *should* have 'Camel - Mirage' and 'King Crimson - Red'."
+3.  **Verify**: Call `batch_check_library_presence` with your hypothesis list.
+4.  **Report**: Present **only** the items where `present: false`. these are the high-confidence recommendations.
+5.  **Enrich**: For each missing gem, provide a **YouTube or Spotify Search Link** so the user can preview the track/album immediately.
+    *   *Example*: "Missing: [Camel - Mirage](https://www.youtube.com/results?search_query=Camel+Mirage)"
 
 ## 🚫 Anti-Patterns (What NOT to do)
 

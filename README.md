@@ -1,5 +1,10 @@
 # NaviGravity (Navidrome Agentic Curator) 🎧
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![MCP](https://img.shields.io/badge/MCP-Enabled-green)](https://modelcontextprotocol.io/)
+[![Status: Draft](https://img.shields.io/badge/Status-Draft-orange)](https://github.com/navigravity/navigravity)
+
 **NaviGravity** (NG) is an intelligent MCP (Model Context Protocol) server that empowers an AI agent to act as a sophisticated music curator for your self-hosted [Navidrome](https://www.navidrome.org/) library.
 
 Unlike simple search tools, NG implements a specific curation philosophy focused on quality, discovery, and non-destructive library management.
@@ -49,8 +54,6 @@ Follow these steps to set up the development environment.
 
 ## 🚀 Usage
 
-## 🚀 Usage
-
 **Important**: This is an [MCP](https://modelcontextprotocol.io/) server. It runs strictly as a backend process for an AI Client (like Claude Desktop, Zed, or Antigravity). You do NOT need to "visit" it in a browser.
 
 For a deep dive into how strict coordination works without a UI, see [MCP Architecture & Workflow](memory-bank/mcp_architecture.md).
@@ -90,6 +93,8 @@ The agent has access to the following tools:
     -   `search_music_enriched`: Metadata-rich search.
     -   `artist_radio`: Smart mixing of artist/similar tracks.
     -   `get_sonic_flow`: BPM/Linkage matching.
+    -   `analyze_user_taste_profile`: **NEW** Generates "Taste Profile" (Top Artists/Genres/Eras) to ground curation.
+    -   `batch_check_library_presence`: **NEW** Verification tool to find gaps (Missing Music) in bulk.
 
 -   **Curation**:
     -   `set_track_mood` / `get_tracks_by_mood`: Manage Virtual Tags.

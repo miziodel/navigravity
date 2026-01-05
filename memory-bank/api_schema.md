@@ -12,6 +12,24 @@ This schema defines the tools available to the Antigravity Agent.
 
 **Returns**: List of objects `{"name": "Jazz", "tracks": 500, "albums": 50}`.
 
+### `analyze_library_composition`
+
+**Purpose**: "Cold" inventory analysis. Returns genre distribution by volume (songs/albums). Useful for understanding what the user *owns* vs what they play.
+
+**Arguments**: None.
+
+**Returns**: JSON with `total_stats` (songs, albums, genres) and `composition` (Top 30 genres by volume).
+
+### `get_library_pillars`
+
+**Purpose**: Identifies "Canonical" artists by Album Count. Useful for separating "Classics" (library backbone) from "Current Obsessions" (high velocity).
+
+**Arguments**:
+
+- `limit` (int, default=50).
+
+**Returns**: List of objects `{"name": "Pink Floyd", "album_count": 28}`.
+
 ### `explore_genre`
 
 **Purpose**: Deep dive into a specific genre to find dominant artists and albums.
@@ -45,6 +63,8 @@ This schema defines the tools available to the Antigravity Agent.
     - `"hidden_gems"`: Play count is 0 (Library-wide).
     - `"unheard_favorites"`: Play count is 0 (From Starred Albums).
     - `"recently_added"`: Newest albums.
+    - `"most_played"`: Top tracks from frequent albums. Supports Top 30+.
+    - `"lowest_rated"`: Tracks with 1-2 stars. Performs a **Deep Scan** (2000+ items) to find rare candidates.
 
 - `limit` (int, default=50): Number of tracks to return.
 
@@ -122,7 +142,7 @@ This schema defines the tools available to the Antigravity Agent.
 
 ### `create_playlist`
 
-**Purpose**: Finalizes the action by saving the playlist to Navidrome.
+**Purpose**: Finalizes the action by saving the playlist to Navidrome. **Idempotent**: Replaces existing playlists with the same name to prevent duplicates.
 
 **Arguments**:
 
