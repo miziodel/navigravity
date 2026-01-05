@@ -35,7 +35,12 @@ logger = logging.getLogger("navidrome_mcp")
 logger.setLevel(logging.INFO)
 
 # File Handler (JSON) - Writable by user running the script
-logHandler = logging.FileHandler("logs/navidrome_mcp.log")
+# Ensure logs directory exists relative to project root
+project_root = Path(__file__).parent.parent
+log_dir = project_root / "logs"
+log_dir.mkdir(exist_ok=True)
+
+logHandler = logging.FileHandler(log_dir / "navidrome_mcp.log")
 formatter = jsonlogger.JsonFormatter(
     "%(asctime)s %(levelname)s %(name)s %(message)s",
     rename_fields={"levelname": "level", "asctime": "timestamp"},
