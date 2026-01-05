@@ -62,7 +62,10 @@ Connect your MCP client (e.g., Claude Desktop, Antigravity) to this server invoc
 The agent has access to the following tools:
 
 -   **Discovery**:
-    -   `get_smart_candidates`: Statistical discovery (Rediscover, Hidden Gems, etc.)
+    -   `get_genres`: Lists all library genres with track counts.
+    -   `explore_genre`: Deep dive into a specific genre (artists, albums).
+    -   `get_genre_tracks`: Fetches random tracks from a genre.
+    -   `get_smart_candidates`: Statistical discovery (Rediscover, Hidden Gems, Unheard Favorites).
     -   `get_divergent_recommendations`: Suggests genres you rarely listen to.
     -   `search_music_enriched`: Metadata-rich search.
     -   `artist_radio`: Smart mixing of artist/similar tracks.
@@ -94,4 +97,7 @@ This project is open-source under the **MIT License**.
 
 - **Freedom**: You are free to use, modify, and distribute this code.
 - **Our Request**: Please attribute the authors and consider contributing your changes back to the community via Pull Requests. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our open philosophy.
+
+> [!NOTE]
+> This project depends on libraries like `py-sonic` which are licensed under **GPLv3**. While our code is MIT, bundling it with GPL dependencies may affect the licensing of distributed binaries.
 

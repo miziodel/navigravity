@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Maurizio Delmonte
+# SPDX-License-Identifier: MIT
+
 from mcp.server.fastmcp import FastMCP
 import libsonic
 import os
@@ -162,6 +165,65 @@ def get_genre_tracks(genre: str, limit: int = 100) -> str:
                 pass
                 
         output = [_format_song(s) for s in songs]
+        return json.dumps(output, indent=2)
+    except Exception as e: return str(e)
+
+
+@mcp.tool()
+@log_execution
+def get_genres() -> str:
+    """Lists all available genres with track and album counts."""
+    conn = get_conn()
+    try:
+        res = conn.getGenres()
+        genres = res.get('genres', {}).get('genre', [])
+        # Sort by song count descending for utility
+        genres.sort(key=lambda x: x.get('songCount', 0), reverse=True)
+        
+        output = []
+        for g in genres:
+            output.append({
+                "name": g.get('value') or g.get('name'), # value is standard, name sometimes used
+                "tracks": g.get('songCount'),
+                "albums": g.get('albumCount')
+            })
+        return json.dumps(output, indent=2)
+    except Exception as e: return str(e)
+
+@mcp.tool()
+@log_execution
+def explore_genre(genre: str, limit: int = 50) -> str:
+    """Gets detailed metrics for a genre (Top Artists, Album counts)."""
+    conn = get_conn()
+    try:
+        # Fetch albums by genre
+        # Note: size limit applies to albums. 500 is a good sample size.
+        # libsonic uses ltype for 'type' argument in getAlbumList2
+        res = conn.getAlbumList2(ltype='byGenre', genre=genre, size=500) 
+        albums = res.get('albumList2', {}).get('album', [])
+        
+        artist_stats = {}
+        
+        for alb in albums:
+            art = alb.get('artist')
+            if art not in artist_stats:
+                artist_stats[art] = {"count": 0, "albums": []}
+            artist_stats[art]["count"] += 1
+            artist_stats[art]["albums"].append(alb.get('title'))
+            
+        # Convert to list and sort by album count
+        sorted_artists = sorted(
+            [{"name": k, "album_count": v["count"], "albums": v["albums"]} for k,v in artist_stats.items()],
+            key=lambda x: x['album_count'],
+            reverse=True
+        )
+        
+        output = {
+            "genre": genre,
+            "total_albums_found": len(albums),
+            "unique_artists": len(sorted_artists),
+            "top_artists": sorted_artists[:limit]
+        }
         return json.dumps(output, indent=2)
     except Exception as e: return str(e)
 

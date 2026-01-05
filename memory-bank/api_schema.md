@@ -4,6 +4,25 @@ This schema defines the tools available to the Antigravity Agent.
 
 ## 🧠 Discovery & Search Tools
 
+### `get_genres`
+
+**Purpose**: Lists all available genres in the library with track and album counts. Useful for mapping the musical landscape.
+
+**Arguments**: None.
+
+**Returns**: List of objects `{"name": "Jazz", "tracks": 500, "albums": 50}`.
+
+### `explore_genre`
+
+**Purpose**: Deep dive into a specific genre to find dominant artists and albums.
+
+**Arguments**:
+
+- `genre` (string).
+- `limit` (int, default=50).
+
+**Returns**: JSON with `unique_artists`, `top_artists` (with album counts).
+
 ### `get_genre_tracks`
 
 **Purpose**: Fetches random tracks for a specific genre.
@@ -23,7 +42,8 @@ This schema defines the tools available to the Antigravity Agent.
 
     - `"rediscover"`: High play count, not played in > 1 year.
     - `"forgotten_favorites"`: Starred/High rated, not played in > 6 months.
-    - `"hidden_gems"`: Play count is 0.
+    - `"hidden_gems"`: Play count is 0 (Library-wide).
+    - `"unheard_favorites"`: Play count is 0 (From Starred Albums).
     - `"recently_added"`: Newest albums.
 
 - `limit` (int, default=50): Number of tracks to return.

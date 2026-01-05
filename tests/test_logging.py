@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Maurizio Delmonte
+# SPDX-License-Identifier: MIT
+
 import sys
 from unittest.mock import MagicMock
 

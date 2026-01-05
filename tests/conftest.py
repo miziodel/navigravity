@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Maurizio Delmonte
+# SPDX-License-Identifier: MIT
+
 import pytest
 import os
 import sys

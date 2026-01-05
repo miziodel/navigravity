@@ -53,6 +53,13 @@ Only when the list passes the Quality Gate do you call `create_playlist`.
 2.  Expand: Search for new tracks that match the vibe.
 3.  **Tag as you go**: If you find perfect new tracks, call `set_track_mood(id, 'focus')` so they are saved for next time. *Build the library's intelligence over time.*
 
+### 🗺️ The "Semantic Exploration" Pattern
+**Use Case**: "Create a playlist of modern ambient electronic music".
+**Strategy**:
+1.  **Map**: Call `get_genres()` to see what tags actually exist (e.g., you might find "IDM", "Glitch", "Ambient Techno" instead of just "Electronic").
+2.  **Survey**: Use `explore_genre('IDM')` to see if there are reputable artists or just noise.
+3.  **Mine**: Once confident, use `get_genre_tracks` or `get_smart_candidates` filtered by these specific logical genres to build the playlist.
+
 ## 🚫 Anti-Patterns (What NOT to do)
 
 *   **The Lazy DG**: calling `create_playlist` immediately after `search_music`. **Reason**: Zero quality control; likely full of duplicates or one artist.
