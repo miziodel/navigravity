@@ -15,36 +15,37 @@ This guide explains how to think about the tools at your disposal in the Navidro
 
 Never simply `search -> create_playlist`. Always follow this cycle:
 
-### 1. Harvest (Gather Candidates)
+### Phase 1: Harvest (Gather Candidates)
 Gather **3x to 5x** the number of tracks requested. You need a surplus to allow for filtering.
 *   *Don't just use one tool.* Mix sources:
     *   `get_smart_candidates('rediscover')` for nostalgia.
     *   `get_smart_candidates('divergent')` for spice.
     *   `get_genre_tracks('Deep House')` for volume.
 
-## 3. Analytics & Discovery Tools
-
-### `analyze_library`
-- **Purpose**: Unified analytics tool.
-- **Modes**:
-    - `composition`: "Cold" inventory analysis (What do I own?).
-    - `pillars`: Identify "Canonical" artists (Library Backbone).
-    - `taste_profile`: "Warm" analysis of user habits (Recent/Frequent).
-- **Example**: "Who are the pillars of my library?" -> `analyze_library(mode='pillars')`.
-
-### `get_smart_candidates`
-- **Updated Modes**:
-  - `lowest_rated`: Now performs a Deep Scan (2000+ items sampled) to find rare low-rated tracks.
-  - `most_played`: Supports Top 30+ results.
-
-### 2. The "Bliss" Quality Gate (Filter)
+### Phase 2: Filter (The "Bliss" Quality Gate)
 **MANDATORY STEP**: Before saving, you MUST run `assess_playlist_quality`.
 *   **Check**: Is `diversity_score` < 0.7? (Too repetitive).
 *   **Check**: Is `most_repetitive_artist.warning` == True?
 *   **Action**: If quality is low, remove tracks from the dominant artist and fetch replacements from a *different* source/genre.
 
-### 3. Execute (Create)
+### Phase 3: Execute (Create)
 Only when the list passes the Quality Gate do you call `create_playlist`.
+
+## 🧰 The Curator's Toolbox
+
+Detailed guidance on specific tools.
+
+### Analytics
+- **`analyze_library`**: Your primary lens.
+    - Use `composition` for "Cold" inventory checks ("What do we own?").
+    - Use `pillars` to find the "Canonical" backbone artists.
+    - Use `taste_profile` for "Warm" habit analysis ("What do I actally like?").
+
+### Discovery
+- **`get_smart_candidates`**: The statistical engine.
+    - `lowest_rated`: Performs a Deep Scan for cleanup candidates.
+    - `most_played`: Returns a robust top set.
+    - `divergent`: Breaks the filter bubble.
 
 ## 🛠️ Strategic Tool Usage
 
