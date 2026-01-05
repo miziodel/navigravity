@@ -6,19 +6,119 @@ import random
 import datetime
 from collections import Counter
 from typing import Optional, List, Dict
+from dotenv import load_dotenv
+from pathlib import Path
+from urllib.parse import urlparse
+import logging
+from pythonjsonlogger import jsonlogger
+import time
+import functools
 
 # --- CONFIGURATION ---
-NAVIDROME_URL = os.getenv("NAVIDROME_URL", "http://192.168.1.100:4533")
-NAVIDROME_USER = os.getenv("NAVIDROME_USER", "test")
-NAVIDROME_PASS = os.getenv("NAVIDROME_PASS", "test")
+# Load .env from the project root (one level up from src/)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+NAVIDROME_URL = os.getenv("NAVIDROME_URL")
+NAVIDROME_USER = os.getenv("NAVIDROME_USER")
+NAVIDROME_PASS = os.getenv("NAVIDROME_PASS")
+
+if not all([NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASS]):
+    raise ValueError("Missing Navidrome configuration. Please ensure NAVIDROME_URL, NAVIDROME_USER, and NAVIDROME_PASS are set in your .env file.")
+
+
+# --- LOGGING SETUP ---
+logger = logging.getLogger("navidrome_mcp")
+logger.setLevel(logging.INFO)
+
+# File Handler (JSON) - Writable by user running the script
+logHandler = logging.FileHandler("logs/navidrome_mcp.log")
+formatter = jsonlogger.JsonFormatter(
+    "%(asctime)s %(levelname)s %(name)s %(message)s",
+    rename_fields={"levelname": "level", "asctime": "timestamp"},
+    datefmt="%Y-%m-%dT%H:%M:%SZ"
+)
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+
+# Metadata capture decorator
+def log_execution(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        tool_name = func.__name__
+        
+        # Capture input args (convert to clean dict if needed)
+        input_data = {"args": args, "kwargs": kwargs}
+        
+        try:
+            result = func(*args, **kwargs)
+            duration = (time.time() - start_time) * 1000
+            
+            # Analyze result for logging without dumping huge payloads
+            result_meta = {}
+            if isinstance(result, str):
+                try:
+                    # Try to parse JSON results to get counts
+                    parsed = json.loads(result)
+                    if isinstance(parsed, list):
+                        result_meta["count"] = len(parsed)
+                        result_meta["ids"] = [item.get("id") for item in parsed if isinstance(item, dict) and "id" in item]
+                    elif isinstance(parsed, dict):
+                        # Catch quality assessment scores
+                        if "diversity_score" in parsed:
+                            result_meta["diversity_score"] = parsed["diversity_score"]
+                            result_meta["repetition_warning"] = parsed.get("most_repetitive_artist", {}).get("warning")
+                except:
+                    result_meta["raw_length"] = len(result)
+            
+            logger.info(
+                "Tool execution successful",
+                extra={
+                    "tool": tool_name,
+                    "inputs": input_data,
+                    "result_summary": result_meta,
+                    "duration_ms": round(duration, 2)
+                }
+            )
+            return result
+            
+        except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(
+                "Tool execution failed",
+                extra={
+                    "tool": tool_name,
+                    "inputs": input_data,
+                    "error": str(e),
+                    "duration_ms": round(duration, 2)
+                },
+                exc_info=True
+            )
+            raise e
+            
+    return wrapper
 
 mcp = FastMCP("Navidrome Agentic Server")
 
 def get_conn():
+    # Parse the URL to separate scheme/host from port
+    parsed = urlparse(NAVIDROME_URL)
+    
+    # Construct base URL (scheme + hostname)
+    # Note: libsonic constructs the full URL by appending :{port} provided in constructor
+    base_url = f"{parsed.scheme}://{parsed.hostname}"
+    
+    # Extract port, default to 80 or 443 if not present
+    port = parsed.port
+    if not port:
+        port = 443 if parsed.scheme == 'https' else 80
+        
     return libsonic.Connection(
-        baseUrl=NAVIDROME_URL, 
+        baseUrl=base_url, 
         username=NAVIDROME_USER, 
         password=NAVIDROME_PASS, 
+        port=port,
         appName="AntigravityMCP"
     )
 
@@ -40,13 +140,41 @@ def _format_song(s):
 # --- TOOLS: DISCOVERY ---
 
 @mcp.tool()
+@log_execution
+def get_genre_tracks(genre: str, limit: int = 100) -> str:
+    """Fetches random tracks for a specific genre."""
+    conn = get_conn()
+    try:
+        # Try getRandomSongs with genre filter first (most efficient for discovery)
+        # Note: libsonic might not support genre arg in getRandomSongs directly in all versions,
+        # but Subsonic API 1.16.1+ supports it.
+        # If kwargs are passed through, this works.
+        res = conn.getRandomSongs(size=limit, genre=genre)
+        songs = res.get('randomSongs', {}).get('song', [])
+        
+        # Fallback: if empty, maybe try getSongsByGenre if it exists (usually for specific browsing)
+        if not songs:
+            try:
+                # Some clients/servers use this
+                res = conn.getSongsByGenre(genre, count=limit)
+                songs = res.get('songsByGenre', {}).get('song', [])
+            except:
+                pass
+                
+        output = [_format_song(s) for s in songs]
+        return json.dumps(output, indent=2)
+    except Exception as e: return str(e)
+
+
+@mcp.tool()
+@log_execution
 def get_smart_candidates(mode: str, limit: int = 50) -> str:
     """Generates lists based on stats (rediscover, hidden_gems, etc)."""
     conn = get_conn()
     try:
         candidates = []
         if mode == "recently_added":
-            res = conn.getAlbumList2(type="newest", size=limit)
+            res = conn.getAlbumList2(ltype="newest", size=limit)
             if 'album' in res.get('albumList2', {}):
                 for album in res['albumList2']['album']:
                     # Simplified: fetching one track per album would require more calls
@@ -72,17 +200,68 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
                             candidates.append(_format_song(s))
                         elif mode == "forgotten_favorites" and days > 180 and starred:
                             candidates.append(_format_song(s))
+
+        elif mode == "unheard_favorites":
+            # 1. Fetch starred albums
+            starred_res = conn.getAlbumList2(ltype="starred", size=500)
+            albums = starred_res.get('albumList2', {}).get('album', [])
+            
+            # 2. Shuffle and pick MORE albums to inspect to increase diversity
+            if albums:
+                random.shuffle(albums)
+                # Inspect all fetched albums (up to size=500) to find enough unique artists
+                # We will collect a raw pool then filter for diversity
+                raw_candidates = []
+                # Stop when we have enough raw candidates to filter down
+                target_raw = limit * 4 
+                
+                for alb in albums:
+                    if len(raw_candidates) >= target_raw:
+                        break
+                    try:
+                        songs_res = conn.getAlbum(alb.get('id'))
+                        songs = songs_res.get('album', {}).get('song', [])
+                        # Shuffle songs in album so we don't always get track 1
+                        random.shuffle(songs)
+                        for s in songs:
+                            if s.get('playCount', 0) == 0:
+                                raw_candidates.append(_format_song(s))
+                    except:
+                        continue
+                
+                # 3. Diversity Filter: Round Robin Selection
+                # Group by artist
+                by_artist = {}
+                for c in raw_candidates:
+                    art = c['artist']
+                    if art not in by_artist: by_artist[art] = []
+                    by_artist[art].append(c)
+                
+                # Round robin selection
+                candidates = []
+                artists = list(by_artist.keys())
+                random.shuffle(artists)
+                
+                while len(candidates) < limit and artists:
+                    for art in list(artists): # iterate copy to allow removal
+                        if len(candidates) >= limit: break
+                        if by_artist[art]:
+                            candidates.append(by_artist[art].pop(0))
+                        else:
+                            artists.remove(art)
                             
+        # Shuffle final result
         random.shuffle(candidates)
         return json.dumps(candidates[:limit], indent=2)
     except Exception as e: return str(e)
 
 @mcp.tool()
+@log_execution
 def get_divergent_recommendations(limit: int = 20) -> str:
     """Returns tracks from genres rarely listened to."""
     conn = get_conn()
     try:
-        freq = conn.getAlbumList2(type="frequent", size=20)
+        freq = conn.getAlbumList2(ltype="frequent", size=20)
         top_genres = {a.get('genre') for a in freq.get('albumList2', {}).get('album', []) if a.get('genre')}
         all_genres = [g['value'] for g in conn.getGenres().get('genres', {}).get('genre', [])]
         divergent = list(set(all_genres) - top_genres)
@@ -98,6 +277,7 @@ def get_divergent_recommendations(limit: int = 20) -> str:
     except Exception as e: return str(e)
 
 @mcp.tool()
+@log_execution
 def artist_radio(artist_name: str) -> str:
     """Mixes artist and similar artists."""
     conn = get_conn()
@@ -112,6 +292,7 @@ def artist_radio(artist_name: str) -> str:
     except Exception as e: return str(e)
 
 @mcp.tool()
+@log_execution
 def search_music_enriched(query: str, limit: int = 20) -> str:
     """Standard search with full metadata."""
     conn = get_conn()
@@ -121,6 +302,7 @@ def search_music_enriched(query: str, limit: int = 20) -> str:
     return json.dumps(out, indent=2)
 
 @mcp.tool()
+@log_execution
 def get_sonic_flow(seed_track_id: str, limit: int = 20) -> str:
     """Finds tracks matching BPM/Year."""
     conn = get_conn()
@@ -134,6 +316,7 @@ def get_sonic_flow(seed_track_id: str, limit: int = 20) -> str:
 # --- TOOLS: MOOD & VIRTUAL TAGS ---
 
 @mcp.tool()
+@log_execution
 def set_track_mood(track_id: str, mood: str) -> str:
     """Adds track to System:Mood:{Mood} playlist."""
     conn = get_conn()
@@ -151,6 +334,7 @@ def set_track_mood(track_id: str, mood: str) -> str:
     except Exception as e: return str(e)
 
 @mcp.tool()
+@log_execution
 def get_tracks_by_mood(mood: str, limit: int = 20) -> str:
     """Gets tracks from mood playlist."""
     conn = get_conn()
@@ -168,6 +352,7 @@ def get_tracks_by_mood(mood: str, limit: int = 20) -> str:
 # --- TOOLS: QUALITY & EXECUTION ---
 
 @mcp.tool()
+@log_execution
 def assess_playlist_quality(song_ids: List[str]) -> str:
     """(Bliss) Checks diversity and repetition."""
     conn = get_conn()
@@ -193,6 +378,7 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
     except Exception as e: return str(e)
 
 @mcp.tool()
+@log_execution
 def create_playlist(name: str, song_ids: List[str]) -> str:
     conn = get_conn()
     conn.createPlaylist(name=name, songIds=song_ids)

@@ -4,6 +4,15 @@ This schema defines the tools available to the Antigravity Agent.
 
 ## 🧠 Discovery & Search Tools
 
+### `get_genre_tracks`
+
+**Purpose**: Fetches random tracks for a specific genre.
+
+**Arguments**:
+
+- `genre` (string).
+- `limit` (int, default=100).
+
 ### `get_smart_candidates`
 
 **Purpose**: Statistical discovery logic (The "Magic List" engine).
@@ -17,7 +26,7 @@ This schema defines the tools available to the Antigravity Agent.
     - `"hidden_gems"`: Play count is 0.
     - `"recently_added"`: Newest albums.
 
-- `limit` (int): Number of tracks to return.
+- `limit` (int, default=50): Number of tracks to return.
 
 ### `get_divergent_recommendations`
 
@@ -25,7 +34,7 @@ This schema defines the tools available to the Antigravity Agent.
 
 **Arguments**:
 
-- `limit` (int).
+- `limit` (int, default=20).
 
 ### `search_music_enriched`
 
@@ -34,7 +43,7 @@ This schema defines the tools available to the Antigravity Agent.
 **Arguments**:
 
 - `query` (string).
-- `limit` (int).
+- `limit` (int, default=20).
 
 **Returns**: JSON with `bitrate`, `year`, `last_played`, `play_count`.
 
@@ -45,7 +54,7 @@ This schema defines the tools available to the Antigravity Agent.
 **Arguments**:
 
 - `seed_track_id` (string).
-- `limit` (int).
+- `limit` (int, default=20).
 
 ### `artist_radio`
 
@@ -73,7 +82,7 @@ This schema defines the tools available to the Antigravity Agent.
 **Arguments**:
 
 - `mood` (string).
-- `limit` (int).
+- `limit` (int, default=20).
 
 ## ⚖️ Quality Control & Execution
 

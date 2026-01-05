@@ -73,5 +73,17 @@ The agent has access to the following tools:
     -   `assess_playlist_quality`: The "Bliss" check logic.
     -   `create_playlist`: Final execution step.
 
+
+---
+
+## Development
+
+### Auto-reload
+For development with auto-reload, use the `mcp dev` command:
+```bash
+mcp dev src/navidrome_mcp_server.py
+```
+This will launch the MCP Inspector, which provides a web interface to test your tools and automatically reloads the server when you modify the code.
+
 ---
 *Built with ❤️ for the self-hosted music community.*
