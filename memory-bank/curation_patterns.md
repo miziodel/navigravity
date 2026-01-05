@@ -4,6 +4,7 @@
 
 ### A. The "Focus Flow" (BPM & Era)
 Creating effective work/focus playlists requires more than just genre filtering.
+- **Mood Base**: Start with `manage_playlist(name='NG:Mood:Focus', operation='get')` to ground the list in known favorites.
 - **BPM Zoning**: Tracks between **70-130 BPM** are ideal for maintaining momentum without inducing anxiety.
 - **Organic Transitions**: Sorting a playlist by BPM (Low → High) can create a natural "ramp up" effect, useful for starting a work session.
 - **Recency Filter**: To avoid "Oldies" bias in Jazz/Electronic, filter by `Year > (Current - 5)`. This surfaces modern, relevant production styles.
@@ -20,7 +21,7 @@ Blindly searching for "Electronic" often yields generic results. A better approa
 1.  **Map**: Use `get_genres()` to list all tags.
 2.  **Filter**: Agentically select sub-genres that match the semantic goal (e.g., for "Focus": "IDM", "Glitch", "Folktronica", "Chamber Jazz").
 3.  **Verify**: Use `explore_genre(tag)` to ensure the tag contains artists relevant to the goal.
-4.  **Mine**: Fetch tracks specifically from these validated sub-genres.
+4.  **Mine**: Fetch tracks specifically from these validated sub-genres (e.g. `get_genre_tracks`).
 
 ## 3. Strict Quality Gates
 For listener satisfaction, agentic playlists should enforce:

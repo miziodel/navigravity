@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Maurizio Delmonte
 # SPDX-License-Identifier: MIT
 
+__version__ = "0.1.2"
+
 from mcp.server.fastmcp import FastMCP
 import libsonic
 import os

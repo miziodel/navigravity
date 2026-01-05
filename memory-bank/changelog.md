@@ -1,5 +1,22 @@
 # NaviGravity Changelog
 
+### v0.1.2 - The "Consolidation" Release (2026-01-05)
+
+#### ♻️ Refactoring & Consolidation
+- **Unified Analytics**: Consolidates `get_library_pillars`, `analyze_library_composition`, and `analyze_user_taste_profile` into a single powerful tool: `analyze_library(mode='pillars'|'composition'|'taste_profile')`.
+- **Unified Curation**: Merges playlist creation and mood tagging into `manage_playlist(operation='create'|'append'|'get')`.
+- **Streamlined Discovery**: Integrated divergent recommendations into `get_smart_candidates(mode='divergent')`.
+- **Code Cleanliness**: Renamed generic internal variables (e.g., `searchResult3`) to be human-readable, decoupling logic from API specifics.
+
+#### 🐛 Fixes
+- **Search Reliability**: Fixed critical bug in `search_music_enriched` where nested `searchResult3 -> song` dictionaries were not parsed correctly, causing "unreliable results" errors.
+- **Docstring Alignment**: Updated `manage_playlist` docstrings to strictly use the `NG:Mood:{MoodName}` convention.
+
+#### 🧠 Agent Persona
+- **Lateral Thinking**: Updated the "Curator Persona" to finding vibes across genres (e.g., Ambient in Jazz/Classical) to solve "rigid prompt" issues.
+
+---
+
 ### v0.1.1 - Enhanced Analytics & Pillars (2026-01-05)
 
 #### ✨ New Features

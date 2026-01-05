@@ -2,9 +2,8 @@
 
 ## 🗺️ Roadmap (Backlog)
 
-- **Gap Analysis**: Automate the "Dual Identity" check to periodically suggest missing artists.
-- **Advanced Filtering**: Mood + BPM + Era combinations.
 - **Remote Access (SSE)**: Implement Server-Sent Events (SSE) transport to allow remote clients to connect to NaviGravity (currently local stdio only).
+- **Gap Analysis**: Automate the "Dual Identity" check to periodically suggest missing artists.
 
 ## 🔄 Recurring / Operations
 - **Analytical Review**: Bi-weekly analysis of `logs/navidrome_mcp.log` to identify:

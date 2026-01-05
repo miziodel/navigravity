@@ -8,7 +8,7 @@ The goal is to move beyond simple "search and play" to complex, reasoned curatio
 
 ## Core Philosophy
 
-1. **Non-Invasive Moods (Virtual Tags)**: We DO NOT modify audio files. Moods are stored as System Playlists (e.g., `System:Mood:Energetic`).
+1. **Non-Invasive Moods (Virtual Tags)**: We DO NOT modify audio files. Moods are stored as System Playlists (e.g., `NG:Mood:Energetic`).
 
 2. **The "Bliss" Quality Gate**: The AI must criticize its own selection. Before saving a playlist, it must run a quality assessment (artist repetition, genre consistency).
 
@@ -24,7 +24,6 @@ The goal is to move beyond simple "search and play" to complex, reasoned curatio
 ## Architecture
 
 For a detailed breakdown of the MCP architecture, see [MCP Architecture & Workflow](mcp_architecture.md).
-For a detailed breakdown of the MCP architecture, see [MCP Architecture & Workflow](mcp_architecture.md).
 For guidelines on how the Agent should use these tools, see [LLM Tool Usage Manifesto](llm_tool_usage.md).
 For advanced curation logic and patterns, see [Curation Patterns](curation_patterns.md).
 
@@ -39,13 +38,15 @@ For advanced curation logic and patterns, see [Curation Patterns](curation_patte
 
 1. **User Prompt**: "I want a high-energy playlist for coding."
 
-2. **Tool Selection**: Agent calls get_tracks_by_mood('focus') or search_music_enriched('electronic').
+2. **Tool Selection**: Agent calls `manage_playlist(name='NG:Mood:focus', operation='get')`.
 
-3. **Refinement**: Agent calls assess_playlist_quality on the candidate list.
+3. **Analysis**: Agent uses `analyze_library(mode='taste_profile')` to understand what "energy" means for this specific user.
 
-4. **Correction**: If quality is low (e.g., too much repetition), Agent swaps tracks.
+4. **Refinement**: Agent calls `assess_playlist_quality` on the candidate list.
 
-5. **Execution**: Agent calls create_playlist.
+5. **Optimization**: Agent replaces tracks that violate diversity or flow constraints (e.g., removing redundant artists or smoothing BPM transitions) to ensure a balanced and non-repetitive listening experience.
+
+6. **Execution**: Agent calls `create_playlist`.
 
 ## Development & Testing
 
