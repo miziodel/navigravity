@@ -76,7 +76,6 @@ The agent has access to the following tools:
     -   `assess_playlist_quality`: The "Bliss" check logic.
     -   `create_playlist`: Final execution step.
 
-
 ---
 
 ## Development
@@ -88,9 +87,6 @@ mcp dev src/navidrome_mcp_server.py
 ```
 This will launch the MCP Inspector, which provides a web interface to test your tools and automatically reloads the server when you modify the code.
 
----
-*Built with ❤️ for the self-hosted music community.*
-
 ## 📜 License & Contributing
 
 This project is open-source under the **MIT License**.
@@ -101,3 +97,5 @@ This project is open-source under the **MIT License**.
 > [!NOTE]
 > This project depends on libraries like `py-sonic` which are licensed under **GPLv3**. While our code is MIT, bundling it with GPL dependencies may affect the licensing of distributed binaries.
 
+---
+*Built with ❤️ for the self-hosted music community.*
