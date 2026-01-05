@@ -49,13 +49,33 @@ Follow these steps to set up the development environment.
 
 ## 🚀 Usage
 
-Run the MCP server:
+## 🚀 Usage
 
-```bash
-python src/navidrome_mcp_server.py
+**Important**: This is an [MCP](https://modelcontextprotocol.io/) server. It runs strictly as a backend process for an AI Client (like Claude Desktop, Zed, or Antigravity). You do NOT need to "visit" it in a browser.
+
+For a deep dive into how strict coordination works without a UI, see [MCP Architecture & Workflow](memory-bank/mcp_architecture.md).
+
+### Running via MCP Client (Recommended)
+Add the following to your client's configuration (e.g., `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "navidrome": {
+      "command": "/path/to/navigravity/.venv/bin/python",
+      "args": ["/path/to/navigravity/src/navidrome_mcp_server.py"]
+    }
+  }
+}
 ```
 
-Connect your MCP client (e.g., Claude Desktop, Antigravity) to this server invocation.
+Once configured, the client will automatically start/stop the server as needed.
+
+## 🤖 For Agents & Curators
+
+We provide a specialized guide for the Large Language Models interacting with this toolset. It defines the "Curator Persona", "Bliss Quality Gate" protocols, and strategic patterns (e.g., *The Time Machine* or *Semantic Exploration*).
+
+👉 **[Read the LLM Tool Usage Manifesto](memory-bank/llm_tool_usage.md)**
 
 ## 🧰 Available Tools
 
