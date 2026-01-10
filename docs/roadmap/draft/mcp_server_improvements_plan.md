@@ -8,6 +8,15 @@ Consolidated plan merging the "Technical Improvements Report (v3)" with the "Roa
 > - **Similar Tracks**: `similar_tracks_by_fingerprint` will act as a high-level wrapper. Internally, it will leverage Subsonic's `getSimilarSongs2` (or similar ID-based lookups) while exposing a clean, domain-specific interface to the Agent, hiding the underlying API implementation details.
 > - **Tag Search**: `search_by_tag` will map to Navidrome's Genre system (which is how tags are mostly exposed in Subsonic API).
 
+## 0. Technical Best Practices (Learnings from v0.1.6)
+*These observations were gathered during large-scale playlist creation (>60 tracks) and inform v0.1.7 improvements.*
+
+1. **Batching required for large sets**: MCP/Agent bridge has a token limit (~50 tracks). `manage_playlist` should use `create` for the first batch, followed by `append` for subsequent blocks of 20.
+2. **Search Sensitivity**: Ampersands and spacing in `search_music_enriched` can cause misses. Recommended practice: simplify queries (e.g., use "Simon Garfunkel" instead of "Simon & Garfunkel").
+3. **ID Validation**: Concatenated or malformed IDs (e.g. from logic errors in agent loops) cause failure in `assess_playlist_quality`. IDs must be validated as 32-char hex strings.
+4. **Smart Candidate Precision**: Modes are strict. v0.1.7 will improve error reporting for invalid modes instead of returning `[]`.
+
+
 ## 5. Advanced Rediscovery Architecture
 **Problem**: The current `rediscover` mode (random song sampling) has a very low yield (~2%) due to Navidrome's 500-track limit on random fetches combined with strict criteria.
 
