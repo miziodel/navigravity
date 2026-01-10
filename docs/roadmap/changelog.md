@@ -1,5 +1,21 @@
 # NaviGravity Changelog
 
+### v0.1.3 - Living Documentation (2026-01-10)
+
+#### 📚 Documentation Architecture
+- **Living Documentation**: Migrated project documentation from `memory-bank/` to a structured `docs/` hierarchy.
+  - **Structure**: Organized into `overview`, `architecture`, `roadmap`, and `artifacts`.
+  - **Single Truth**: Established `docs/` as the canonical source for Agent knowledge.
+  - **Integration**: Linked `docs/` directly to the Agent's global knowledge base via symlink.
+  - **Rules**: Added strict agent rules (`.agent/rules/90_documentation.md`) for maintaining documentation.
+
+#### 🏗️ Infrastructure & Quality
+- **Modern Packaging**: Refactored project setup to use `pyproject.toml` for robust dependency and build management.
+- **Logging Reliability**: Fixed issue where log directory creation would fail if using relative paths; now ensures directory existence before writing.
+- **Test Suite**: Enhanced test assertions for stronger regression protection.
+
+---
+
 ### v0.1.2 - The "Consolidation" Release (2026-01-05)
 
 #### ♻️ Refactoring & Consolidation

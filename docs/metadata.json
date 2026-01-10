@@ -1,0 +1,42 @@
+{
+  "key": "navigravity_architecture",
+  "title": "NaviGravity Projects & Architecture",
+  "summary": "Full Living Documentation for the NaviGravity MCP Agent, including Curation Patterns, API Schemas, Implementation Manifests, Roadmap, and Changelogs.",
+  "created_at": "2026-01-10T18:00:00+01:00",
+  "updated_at": "2026-01-10T19:15:00+01:00",
+  "references": ["https://github.com/navigravity/navigravity"],
+  "artifacts": [
+    {
+      "path": "docs/README.md",
+      "description": "Master Index"
+    },
+    {
+      "path": "docs/overview/project_manifest.md",
+      "description": "Project Vision & Philosophy"
+    },
+    {
+      "path": "docs/overview/llm_tool_usage.md",
+      "description": "Agent Curator Persona & Tool Guide"
+    },
+    {
+      "path": "docs/overview/curation_patterns.md",
+      "description": "Advanced Curation Recipes"
+    },
+    {
+      "path": "docs/architecture/mcp_architecture.md",
+      "description": "MCP System Architecture"
+    },
+    {
+      "path": "docs/architecture/api_schema.md",
+      "description": "Tool & Resource API Definition"
+    },
+    {
+      "path": "docs/roadmap/roadmap.md",
+      "description": "Future Features Backlog"
+    },
+    {
+      "path": "docs/roadmap/changelog.md",
+      "description": "Version History"
+    }
+  ]
+}

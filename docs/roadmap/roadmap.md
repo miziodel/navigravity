@@ -1,4 +1,4 @@
-# NaviGravity Roadmap & Changelog
+# NaviGravity Roadmap
 
 ## 🗺️ Roadmap (Backlog)
 

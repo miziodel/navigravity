@@ -36,6 +36,7 @@ This schema defines the tools available to the Antigravity Agent.
     - `"hidden_gems"`: Play count is 0 (Library-wide).
     - `"unheard_favorites"`: Play count is 0 (From Starred Albums).
     - `"recently_added"`: Newest albums.
+    - `"top_rated"`: Tracks with high user ratings (Hearts/Stars).
     - `"most_played"`: Top tracks from frequent albums.
     - `"lowest_rated"`: Tracks with 1-2 stars (Deep Scan).
     - `"divergent"`: Tracks from genres rarely listened to (Breaks filter bubble).
@@ -43,7 +44,7 @@ This schema defines the tools available to the Antigravity Agent.
 
 ### `search_music_enriched`
 
-**Purpose**: Keyword search with technical metadata.
+**Purpose**: Keyword search with full metadata.
 
 **Arguments**:
 - `query` (string).
@@ -65,6 +66,7 @@ This schema defines the tools available to the Antigravity Agent.
 - `operation` (string):
     - `"create"`: Replaces or creates a playlist with the given tracks.
     - `"append"`: Adds tracks to an existing playlist (or creates it).
+    - `"delete"`: Deletes a playlist by name.
     - `"get"`: Returns the tracks in a playlist (random shuffled subset).
 - `track_ids` (List[str]): Required for `create` and `append`.
 

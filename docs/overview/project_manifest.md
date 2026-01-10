@@ -18,12 +18,12 @@ The goal is to move beyond simple "search and play" to complex, reasoned curatio
 
 ## Licensing & Contribution
 
-- **License**: [MIT (Open Source)](../LICENSE).
-- **Social Contract**: Users are encouraged to attribute the work and contribute back improvements via PRs (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
+- **License**: [MIT (Open Source)](../../LICENSE).
+- **Social Contract**: Users are encouraged to attribute the work and contribute back improvements via PRs (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
 
 ## Architecture
 
-For a detailed breakdown of the MCP architecture, see [MCP Architecture & Workflow](mcp_architecture.md).
+For a detailed breakdown of the MCP architecture, see [MCP Architecture & Workflow](../architecture/mcp_architecture.md).
 For guidelines on how the Agent should use these tools, see [LLM Tool Usage Manifesto](llm_tool_usage.md).
 For advanced curation logic and patterns, see [Curation Patterns](curation_patterns.md).
 

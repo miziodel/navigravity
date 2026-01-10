@@ -56,7 +56,7 @@ Unlike simple search tools, NG implements a specific curation philosophy focused
 
 **Important**: This is an [MCP](https://modelcontextprotocol.io/) server. It runs strictly as a backend process for an AI Client (like Antigravity, Claude Desktop or Zed). You do NOT need to "visit" it in a browser.
 
-For a deep dive into how strict coordination works without a UI, see [MCP Architecture & Workflow](memory-bank/mcp_architecture.md).
+For a deep dive into how strict coordination works without a UI, see [MCP Architecture & Workflow](docs/architecture/mcp_architecture.md).
 
 ### Running via MCP Client (Recommended)
 Add the following to your client's configuration (e.g., `claude_desktop_config.json`):
@@ -76,7 +76,7 @@ Add the following to your client's configuration (e.g., `claude_desktop_config.j
 
 We provide a specialized guide for the Large Language Models interacting with this toolset. It defines the "Curator Persona", "Bliss Quality Gate" protocols, and strategic patterns (e.g., *The Time Machine* or *Semantic Exploration*).
 
-👉 **[Read the LLM Tool Usage Manifesto](memory-bank/llm_tool_usage.md)**
+👉 **[Read the LLM Tool Usage Manifesto](docs/overview/llm_tool_usage.md)**
 
 ## 🧰 Available Tools
 
