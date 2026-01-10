@@ -7,6 +7,11 @@
 - **MCP Resource**: Exposed the manifesto via `curator://manifesto` for on-demand agentic introspection.
 - **MCP Prompt**: Added `curator_mode` prompt to automatically inject the protocol into new session contexts.
 
+#### 🏗️ Quality & Infrastructure
+- **Test Alignment**: Re-aligned `tests/test_missing_music_tools.py` with the `analyze_library` unified API.
+- **Git Hygiene**: Updated `.gitignore` to prevent documentation `updated_at` timestamps from triggering false-positive diffs during Agent edits.
+
+
 ---
 
 ### v0.1.5 - Precision Curation (2026-01-10)
