@@ -8,15 +8,14 @@ import pytest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-from src.navidrome_mcp_server import analyze_user_taste_profile, batch_check_library_presence, get_smart_candidates
+from src.navidrome_mcp_server import analyze_library, batch_check_library_presence, get_smart_candidates
 
 # Configure logging to show info
 logging.basicConfig(level=logging.INFO)
 
 def test_analyze_taste():
-    print("\n--- Testing analyze_user_taste_profile ---")
-    result = analyze_user_taste_profile()
-    
+    print("\n--- Testing analyze_library(mode='taste_profile') ---")
+    result = analyze_library(mode='taste_profile')
     # Assert result is not None/Empty
     assert result, "Result should not be empty"
     
@@ -49,6 +48,7 @@ def test_batch_check():
         print("Success! Results verified.")
     except Exception as e:
         pytest.fail(f"Failed: {e}")
+
 
 def test_smart_candidates():
     print("\n--- Testing get_smart_candidates ---")
