@@ -1,5 +1,15 @@
 # NaviGravity Changelog
 
+### v0.1.4 - Discoverability & Feature Gaps (2026-01-10)
+
+#### ✨ New Features
+- **Playlist Management**: Added `operation='delete'` to `manage_playlist` tool, enabling full lifecycle management of playlists.
+
+#### 🔍 Discoverability
+- **Root Resource**: Verified `navidrome://info` resource is correctly implemented and discoverable for agentic handshake.
+
+---
+
 ### v0.1.3 - Living Documentation (2026-01-10)
 
 #### 📚 Documentation Architecture
