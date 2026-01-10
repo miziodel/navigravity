@@ -1,5 +1,27 @@
 # NaviGravity Changelog
 
+### v0.1.6 - The "Curator" Protocol (2026-01-10)
+
+#### 🎩 Curator Manifesto
+- **Implicit Protocol**: Introduced the `Curator Manifesto` (Harvest -> Filter -> Execute), moving from "Librarian" to "Curator" mindset.
+- **MCP Resource**: Exposed the manifesto via `curator://manifesto` for on-demand agentic introspection.
+- **MCP Prompt**: Added `curator_mode` prompt to automatically inject the protocol into new session contexts.
+
+---
+
+### v0.1.5 - Precision Curation (2026-01-10)
+
+#### 🛠️ Smart Candidate Enhancements
+- **Advanced Filtering**: Integrated `include_genres`, `exclude_genres`, `min_bpm`, and `max_bpm` parameters into `get_smart_candidates`.
+- **Inferred Moods**: Added `mood` parameter ('relax', 'energy', 'focus') that automatically maps to BPM and genre constraints.
+- **Diversity Constraints**: Implemented `max_tracks_per_artist` to prevent artist dominance in generated lists.
+- **Metadata Enrichment**: Track objects now include `bpm`, `userRating`, `comment`, and `path`.
+
+#### 🛣️ Roadmap
+- **Strategy Draft**: Archived the "MCP Server Improvements" implementation plan in `docs/roadmap/draft/mcp_server_improvements_plan.md` for future execution (Graceful Degradation, Similar Artists, Multi-Mode Harvesting, Batch Genre).
+
+---
+
 ### v0.1.4 - Discoverability & Feature Gaps (2026-01-10)
 
 #### ✨ New Features
