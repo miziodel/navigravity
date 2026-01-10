@@ -151,3 +151,4 @@ cython_debug/
 # IDEs
 .vscode/
 .idea/
+docs/timestamps.json
