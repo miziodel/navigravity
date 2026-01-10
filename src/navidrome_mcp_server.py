@@ -176,7 +176,12 @@ def _format_song(s):
         "bpm": s.get('bpm', 0),
         "play_count": s.get('playCount', 0),
         "last_played": s.get('played', 'Never'),
-        "starred": "starred" in s
+        "starred": "starred" in s,
+        "rating": s.get('userRating', 0),
+        # Attempt to extract mood/subgenre if available in comments or other fields
+        # Navidrome doesn't always expose these directly in getSong, but we can try
+        "comment": s.get('comment', ''), 
+        "path": s.get('path', '')
     }
 
 def _fetch_albums(criteria: str, size: int = 50, genre: str = None) -> List[Dict]:
@@ -194,6 +199,116 @@ def _fetch_albums(criteria: str, size: int = 50, genre: str = None) -> List[Dict
     except Exception as e:
         logger.error(f"Failed to fetch albums for criteria {criteria}: {e}")
         return []
+
+
+# --- RESOURCES & PROMPTS: DISCOVERY & INFO ---
+
+@mcp.resource("navidrome://info")
+def get_server_info() -> str:
+    """Returns server identity, version, and connectivity status."""
+    return json.dumps({
+        "server": "Navigravity",
+        "version": __version__,
+        "status": "connected", # Static for now, could be dynamic
+        "capabilities": ["playback", "playlists", "discovery", "curation"]
+    })
+
+@mcp.tool()
+def check_connection() -> str:
+    """Verifies connection to the backend Navidrome instance."""
+    try:
+        conn = get_conn()
+        if conn.ping():
+            # Clean up the URL in case it has user info
+            safe_url = conn.baseUrl.split('@')[-1] if '@' in conn.baseUrl else conn.baseUrl
+            return f"Connected to Navidrome at {safe_url}"
+        return "Failed to connect to Navidrome (ping failed)"
+    except Exception as e:
+        return f"Failed to connect to Navidrome: {str(e)}"
+
+@mcp.prompt()
+def usage_guide() -> str:
+    """Returns the 'Instruction Manual' for the Navigravity MCP server."""
+    return """
+    # Navigravity MCP Server Guide
+    
+    ## 1. Discovery
+    - Start by checking `navidrome://info` to see server capabilities.
+    - Use `check_connection` to verify the backend is up.
+    
+    ## 2. Exploration
+    - `get_genres()`: See what's available.
+    - `explore_genre(genre)`: deep dive into a genre.
+    - `analyze_library(mode='taste_profile')`: Understand the user's taste.
+    
+    ## 3. Curation (The Quality First Workflow)
+    Follow the Curator Manifesto:
+    1. **Harvest**: Use `get_smart_candidates` to get raw tracks.
+    2. **Filter**: Use `assess_playlist_quality` (if available) or `batch_check_library_presence`.
+    3. **Execute**: Use `manage_playlist` to create the final playlist.
+    
+    ## 4. Playback
+    - This server primarily manages library state. Playback control depends on your specific client integration.
+    """
+
+# --- RESOURCES & PROMPTS: CURATOR ---
+
+CURATOR_MANIFESTO_TEXT = """
+# The Curator Manifesto
+> "L'agente 'bibliotecario' è morto. Viva il Curatore."
+
+This protocol defines the strict **Quality First** methodology for all playlist generation tasks. No more "trial and error". 
+
+## 1. The Core Philosophy
+**Stop Guessing. Start Curating.**
+Every playlist must pass through three rigorous stages: **Harvest ➔ Filter ➔ Execute**.
+
+## 2. The Information Hierarchy
+Reliability over Randomness.
+1.  **Harvest (The Broad Net)**: Gather 3x-5x the required tracks.
+    *   *Target*: 150+ candidates for a 50-song playlist.
+    *   *Tools*: `get_smart_candidates`, `search_music_enriched`.
+2.  **Filter (The Quality Gate)**: Ruthlessly cull candidates.
+    *   *Diversity Check*: Use `assess_playlist_quality` to ensure no artist dominates (max 2-3 tracks per artist unless specified).
+    *   *Library Presence*: Use `batch_check_library_presence` to verify availability.
+    *   *Analysis*: Check `diversity_score` and `repetition_metrics`.
+3.  **Execute (The Precision Strike)**: Create the final product.
+    *   *Action*: `manage_playlist` (create).
+    *   *Verification*: Final `assess_playlist_quality` run on the created playlist.
+
+## 3. The Rules of Engagement
+*   **Harvest Ratio**: Always fetch **300%-500%** of the target length.
+*   **Quality Gate**: NEVER create a playlist without passing the `assess_playlist_quality` check first.
+*   **Batch Verification**: NEVER assume tracks exist; verify them.
+
+## 4. Operational Workflow
+1.  **Request Analysis**: Understand the vibe/genre/mood.
+2.  **Harvesting**:
+    *   Call `get_smart_candidates(limit=150, ...)`
+3.  **Filtering**:
+    *   Local processing to filter duplicates and heavy repetition.
+    *   Consult `assess_playlist_quality` on the draft list.
+4.  **Finalization**: 
+    *   Push to server via `manage_playlist`.
+
+---
+*Signed: The Curator*
+"""
+
+@mcp.resource("curator://manifesto")
+def get_manifesto() -> str:
+    """Returns the Curator Manifesto protocol."""
+    return CURATOR_MANIFESTO_TEXT
+
+@mcp.prompt()
+def curator_mode() -> str:
+    """Injects the Curator Manifesto into the context to enforce strict playlist quality protocols."""
+    return f"""
+    You are now operating in CURATOR MODE. 
+    Review the following protocol strictly before proceeding with any playlist task.
+    
+    {CURATOR_MANIFESTO_TEXT}
+    """
 
 
 # --- TOOLS: ANALYSIS & INTROSPECTION ---
@@ -454,25 +569,60 @@ def explore_genre(genre: str, limit: int = 50) -> str:
 
 @mcp.tool()
 @log_execution
-def get_smart_candidates(mode: str, limit: int = 50) -> str:
+def get_smart_candidates(
+    mode: str, 
+    limit: int = 50,
+    include_genres: List[str] = None,
+    exclude_genres: List[str] = None,
+    min_bpm: int = None,
+    max_bpm: int = None,
+    mood: str = None,
+    max_tracks_per_artist: int = None
+) -> str:
     """
-    Generates lists based on stats.
-    Modes: 
-      - recently_added: Newest albums
-      - most_played: Top tracks from frequent albums
-      - top_rated: Starred tracks and high userRating (Hearts)
-      - lowest_rated: Tracks with 1-2 stars (cleanup candidates)
-      - rediscover: Old favorites
-      - hidden_gems: Never played
-      - unheard_favorites: Unplayed tracks from starred albums
-      - divergent: Tracks from genres rarely listened to
+    Generates lists based on stats with advanced filtering.
+    
+    Args:
+        mode: recently_added, most_played, top_rated, lowest_rated, rediscover, hidden_gems, unheard_favorites, divergent
+        limit: Max tracks to return (default 50)
+        include_genres: List of genres to strictly include (case-insensitive partial match)
+        exclude_genres: List of genres to exclude
+        min_bpm: Minimum BPM
+        max_bpm: Maximum BPM
+        mood: 'relax' (low BPM, no heavy genres), 'energy' (high BPM, upbeat genres), etc.
+        max_tracks_per_artist: Diversity constraint
     """
     conn = get_conn()
     try:
+        # --- 1. MOOD MAPPING (INFERENCE) ---
+        # Map high-level mood to low-level technical constraints
+        if mood:
+            mood = mood.lower()
+            if mood == "relax":
+                # Implicit filters: Slow to mid tempo, avoid aggressive genres
+                if max_bpm is None: max_bpm = 115
+                if exclude_genres is None: exclude_genres = []
+                exclude_genres.extend(["Metal", "Hard Rock", "Punk", "Industrial", "Techno", "Drum and Bass"])
+            elif mood == "energy" or mood == "workout":
+                if min_bpm is None: min_bpm = 120
+                if include_genres is None: include_genres = []
+                # We don't strictly enforce include_genres for energy as many genres can be energetic,
+                # but we rely on BPM. Optionally we could favor Pop/Rock/Electronic.
+            elif mood == "focus":
+                if exclude_genres is None: exclude_genres = []
+                exclude_genres.extend(["Pop", "Hip-Hop", "Rap", "Vocal"]) # Try to avoid distracting lyrics
+                
+        # --- 2. FETCH CANDIDATES (Raw Pool) ---
+        # We fetch a larger pool to allow for filtering attrition
+        fetch_limit = limit * 5 if (include_genres or exclude_genres or min_bpm or max_bpm) else limit * 2
+        # Cap fetch limit to avoid timeout
+        if fetch_limit > 500: fetch_limit = 500
+        
         candidates = []
+        # ... fetch logic per mode ...
         
         if mode == "recently_added":
-            albums = _fetch_albums("newest", size=limit)
+            albums = _fetch_albums("newest", size=fetch_limit)
             # Just return representative tracks (track 1) from new albums for discovery
             for alb in albums:
                  try:
@@ -488,7 +638,7 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
         elif mode == "most_played":
             # Heuristic: Get frequent albums, then extract their top songs
             # INCREASED SIZE: Fetch more albums to ensure we get a true Top 30+ even if some albums are short
-            frequent_albums = _fetch_albums("frequent", size=100) 
+            frequent_albums = _fetch_albums("frequent", size=fetch_limit)  
             all_tracks = []
             for alb in frequent_albums:
                 try:
@@ -533,7 +683,7 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
             # DEEP SCAN: Retries to find enough candidates
             found_count = 0
             retries = 3
-            sample_size = 2000 # Aggressive sampling
+            sample_size = fetch_limit * 2 # Aggressive sampling
             
             for _ in range(retries):
                 if found_count >= limit: break
@@ -553,7 +703,7 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
             candidates.sort(key=lambda x: x.get('playCount', 0), reverse=True)
 
         elif mode in ["rediscover", "forgotten_favorites", "hidden_gems"]:
-            pool = conn.getRandomSongs(size=500)
+            pool = conn.getRandomSongs(size=fetch_limit * 2) # Fetch extra for date filtering
             today = datetime.datetime.now()
             if 'randomSongs' in pool and 'song' in pool['randomSongs']:
                 for s in pool['randomSongs']['song']:
@@ -584,7 +734,7 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
             # 2. Randomize albums to inspect
             if albums:
                 random.shuffle(albums)
-                target_raw = limit * 4 
+                target_raw = fetch_limit * 2
                 raw_candidates = []
                 
                 for alb in albums:
@@ -635,10 +785,49 @@ def get_smart_candidates(mode: str, limit: int = 50) -> str:
                 if 'song' in res.get('randomSongs', {}):
                     candidates.extend([_format_song(s) for s in res['randomSongs']['song']])
 
-        # Shuffle final result ONLY if not sorted by logic above
+        # --- 3. FILTERING ---
+        filtered_candidates = []
+        
+        for cand in candidates:
+            # Genre Filter
+            genre_val = cand.get('genre', '').lower()
+            if include_genres:
+                if not any(incl.lower() in genre_val for incl in include_genres):
+                    continue
+            if exclude_genres:
+                if any(excl.lower() in genre_val for excl in exclude_genres):
+                    continue
+                    
+            # BPM Filter
+            bpm_val = cand.get('bpm', 0)
+            if min_bpm and bpm_val > 0:
+                if bpm_val < min_bpm: continue
+            if max_bpm and bpm_val > 0:
+                if bpm_val > max_bpm: continue
+                
+            filtered_candidates.append(cand)
+            
+        candidates = filtered_candidates
+        
+        # --- 4. DIVERSITY & PAGINATION ---
+        # Deduplicate by ID
+        unique_candidates = {c['id']: c for c in candidates}
+        candidates = list(unique_candidates.values())
+
         if mode not in ["most_played", "top_rated"]:
             random.shuffle(candidates)
             
+        # Diversity Constraint (Max Tracks Per Artist)
+        if max_tracks_per_artist:
+            artist_counts = Counter()
+            final_diversity_list = []
+            for c in candidates:
+                art = c.get('artist')
+                if artist_counts[art] < max_tracks_per_artist:
+                    final_diversity_list.append(c)
+                    artist_counts[art] += 1
+            candidates = final_diversity_list
+
         return json.dumps(candidates[:limit], indent=2)
     except Exception as e: 
         logger.error(f"Error in get_smart_candidates mode={mode}: {e}", exc_info=True)
@@ -672,6 +861,12 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
             random.shuffle(entries)
             # Limit default return to 20 for safety
             return json.dumps([_format_song(s) for s in entries[:50]], indent=2)
+
+        if operation == "delete":
+            if not pl_id:
+                return f"Playlist '{name}' not found."
+            conn.deletePlaylist(pl_id)
+            return f"Deleted playlist '{name}' (ID: {pl_id})."
 
         if not track_ids:
             return "Error: track_ids required for create/append."
