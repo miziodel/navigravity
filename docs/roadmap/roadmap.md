@@ -38,3 +38,7 @@
 - Currently using `System:Mood:{Mood}` playlists.
 - **Future**: Store mood data in custom ID3 tags or `comment` fields if Navidrome supports writing back to file.
 - **Alternative**: Use a local SQLite DB sidecar to map `Effectiveness` of a track for a mood.
+
+### 5. Monograph Curator (`create_monograph_playlist`)
+- **Concept**: Agentic curation using "Golden Ratio" mixing (30% Hits, 50% Pearls, 20% Spice) and "Wave" sorting.
+- **Spec**: [Monograph Manifesto](draft/monograph_manifesto.md) (includes "Hybrid Knowledge Injection" pattern).
