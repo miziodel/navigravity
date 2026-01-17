@@ -511,6 +511,41 @@ def get_genre_tracks(genre: str, limit: int = 100) -> str:
 
 @mcp.tool()
 @log_execution
+def get_similar_artists(artist_id: str, limit: int = 10) -> str:
+    """Gets similar artists based on Last.fm data (if available)."""
+    conn = get_conn()
+    try:
+        res = conn.getSimilarArtists(artist_id, count=limit)
+        artists = res.get('similarArtists', {}).get('artist', [])
+        
+        output = []
+        for a in artists:
+            output.append({
+                "id": a.get('id'),
+                "name": a.get('name'),
+                "match": a.get('match') # Similarity score (0-100 usually, or 0.0-1.0)
+            })
+        return json.dumps(output, indent=2)
+    except Exception as e: return str(e)
+
+
+@mcp.tool()
+@log_execution
+def get_similar_songs(song_id: str, limit: int = 50) -> str:
+    """Gets similar songs to the target song (Radio Mode)."""
+    conn = get_conn()
+    try:
+        # getSimilarSongs2 returns songs from the library similar to query
+        res = conn.getSimilarSongs2(song_id, count=limit)
+        songs = res.get('similarSongs2', {}).get('song', [])
+        
+        output = [_format_song(s) for s in songs]
+        return json.dumps(output, indent=2)
+    except Exception as e: return str(e)
+
+
+@mcp.tool()
+@log_execution
 def get_genres() -> str:
     """Lists all available genres with track and album counts."""
     conn = get_conn()
@@ -786,6 +821,7 @@ def get_smart_candidates(
                     candidates.extend([_format_song(s) for s in res['randomSongs']['song']])
 
         # --- 3. FILTERING ---
+        raw_candidates_count = len(candidates)
         filtered_candidates = []
         
         for cand in candidates:
@@ -800,7 +836,9 @@ def get_smart_candidates(
                     
             # BPM Filter
             bpm_val = cand.get('bpm', 0)
-            if min_bpm and bpm_val > 0:
+            if min_bpm:
+                # Strict check: Exclude if BPM is unknown (0) or less than min
+                # Note: Navidrome returns 0 for unknown BPM.
                 if bpm_val < min_bpm: continue
             if max_bpm and bpm_val > 0:
                 if bpm_val > max_bpm: continue
@@ -808,6 +846,11 @@ def get_smart_candidates(
             filtered_candidates.append(cand)
             
         candidates = filtered_candidates
+        
+        # Breaking Change: Fail Fast if strict filtering removed everything
+        # This helps the Agent realize its constraints are too tight (e.g. BPM filter on untagged library)
+        if not candidates and (mood or min_bpm or max_bpm) and mode in ["top_rated", "most_played", "recently_added"]:
+             return f"Error: Strict filtering (Mood/BPM) matched 0 candidates out of {raw_candidates_count} raw items. Try relaxing constraints (e.g. remove mood)."
         
         # --- 4. DIVERSITY & PAGINATION ---
         # Deduplicate by ID
@@ -899,15 +942,28 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
     """(Bliss) Checks diversity and repetition."""
     conn = get_conn()
     try:
-        songs = [conn.getSong(sid).get('song') for sid in song_ids]
-        songs = [s for s in songs if s]
-        if not songs: return "No valid songs."
+        songs = []
+        warnings = []
+        for sid in song_ids:
+            try:
+                # getSong returns {'song': {...}} or error/empty
+                res = conn.getSong(sid)
+                s = res.get('song')
+                if s: 
+                    songs.append(s)
+                else:
+                    warnings.append(sid)
+            except Exception:
+                warnings.append(sid)
+
+        if not songs: 
+            return json.dumps({"error": "No valid songs found", "warnings": warnings})
         
         artists = [s.get('artist') for s in songs]
         artist_counts = Counter(artists)
         most_common = artist_counts.most_common(1)[0] if artists else ("None", 0)
         
-        return json.dumps({
+        result = {
             "total_tracks": len(songs),
             "unique_artists": len(set(artists)),
             "most_repetitive_artist": {
@@ -916,7 +972,12 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
                 "warning": most_common[1] > (len(songs) * 0.3)
             },
             "diversity_score": round(len(set(artists)) / len(songs), 2)
-        }, indent=2)
+        }
+        
+        if warnings:
+            result["warnings"] = warnings
+            
+        return json.dumps(result, indent=2)
     except Exception as e: return str(e)
 
 
@@ -925,17 +986,25 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
 def search_music_enriched(query: str, limit: int = 20) -> str:
     """Standard search with full metadata."""
     conn = get_conn()
-    search_response = conn.search3(query, songCount=limit)
-    formatted_results = []
     
-    search_results_container = search_response.get('searchResult3', {})
-    if 'song' in search_results_container: 
-        songs_list = search_results_container['song']
-        # search3 can return a single dict instead of a list if only 1 result found in some versions,
-        # but libsonic usually normalizes.
-        if isinstance(songs_list, dict): 
-            songs_list = [songs_list]
-        formatted_results = [_format_song(s) for s in songs_list]
+    def perform_search(q):
+        resp = conn.search3(q, songCount=limit)
+        container = resp.get('searchResult3', {})
+        results = []
+        if 'song' in container: 
+            sl = container['song']
+            if isinstance(sl, dict): sl = [sl]
+            results = [_format_song(s) for s in sl]
+        return results
+
+    formatted_results = perform_search(query)
+    
+    # Fuzzy Fallback Logic
+    # If strict results are empty and query contains potentially complex chars like "&", try simplifying
+    if not formatted_results and " & " in query:
+        fallback_query = query.replace(" & ", " ")
+        logger.info(f"Strict search failed for '{query}'. Retrying fallback: '{fallback_query}'")
+        formatted_results = perform_search(fallback_query)
         
     return json.dumps(formatted_results, indent=2)
 
