@@ -5,11 +5,15 @@
 - **Remote Access (SSE)**: Implement Server-Sent Events (SSE) transport to allow remote clients to connect to NaviGravity (currently local stdio only).
 - **Gap Analysis**: Automate the "Dual Identity" check to periodically suggest missing artists.
 
-## 🔄 Recurring / Operations
-- **Analytical Review**: Bi-weekly analysis of `logs/navidrome_mcp.log` to identify:
-  - "Empty Result" queries (bad prompts?).
-  - "Low Quality" playlists (bad logic?).
-  - Refine system prompts based on findings.
+## 🚀 Active Release: v0.1.7 (Stability & Discovery)
+**Status**: Feature Complete / Verification Phase
+**Plan**: [v0.1.7_plan.md](file:///Users/NOBKP/navigravity/docs/roadmap/active/v0.1.7_plan.md)
+**Changes**: [changelog.md](file:///Users/NOBKP/navigravity/docs/roadmap/changelog.md)
+
+### Delivered in v0.1.7
+- **Stability**: Ghost ID Fixes, Strict BPM Filtering (fixing "Silent Mode"), Robust Search Fallback.
+- **Tools**: `get_similar_artists`, `get_similar_songs`.
+
 
 ## 🧠 Future Tool Enhancements
 

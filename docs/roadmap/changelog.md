@@ -1,5 +1,18 @@
 # NaviGravity Changelog
 
+### v0.1.7 - Stability & Discovery (2026-01-17)
+
+#### ✨ New Features
+- **Similarity Tools**: Added `get_similar_artists` and `get_similar_songs` for graph traversal and "Radio Mode".
+- **Roadmap**: Consolidated roadmap strategy into `docs/roadmap/prioritized_roadmap.md` and active plan in `docs/roadmap/active/v0.1.7_plan.md`.
+
+#### 🐛 Fixes & Improvements
+- **Strict Filtering**: `get_smart_candidates` now strictly excludes tracks with `bpm=0` when `min_bpm` is requested, returning an error if strict filtering matches 0 candidates (Fixing "Silent Mode" bug).
+- **Ghost ID Protection**: `assess_playlist_quality` now gracefully handles "Song not found" errors by skipping them and returning a `warnings` field.
+- **Search Reliability**: `search_music_enriched` automatically retries with a simplified query if strict search fails (Fixing "Fuzzy Search" issue).
+
+---
+
 ### v0.1.6 - The "Curator" Protocol (2026-01-10)
 
 #### 🎩 Curator Manifesto
