@@ -15,18 +15,30 @@
 #### 📝 Project Metadata
 - **Metadata Automation**: Updated `docs/metadata.json` and `docs/roadmap/prioritized_roadmap.md` to reflect current state.
 
-### v0.1.7 - Stability & Discovery (2026-01-17)
+### v0.1.7 - Stability & Discovery (2026-01-18)
 
 #### ✨ New Features
 - **Similarity Tools**: Added `get_similar_artists` and `get_similar_songs` for graph traversal and "Radio Mode".
-- **Roadmap**: Consolidated roadmap strategy into `docs/roadmap/prioritized_roadmap.md` and active plan in `docs/roadmap/active/v0.1.7_plan.md`.
+- **Multi-Mode Harvesting**: `get_smart_candidates` now supports comma-separated modes for broad net gathering.
+- **Rediscovery V2**: Implemented "Album Archeology" (mode=`rediscover`) shifting from random songs to random albums for better coherence.
+- **Advanced Discovery Modes**: 
+  - `rediscover_deep`: Iterative mining loop for high-dated tracks.
+  - `fallen_pillars`: Discography deep-scan for top artists' forgotten tracks.
+  - `similar_to_starred`: Proximity recommendations using favorites as seeds.
+- **Multi-Genre Tools**: 
+  - `search_by_tag`: intersection/union filtering for complex vibe searches.
+  - `get_genre_tracks`: now accepts a list of genres for batched discovery.
+- **Quality Gates**: 
+  - `validate_playlist_rules`: new dry-run tool for diversity and mood verification.
+- **Roadmap Strategy**: Consolidated roadmap strategy into `docs/roadmap/prioritized_roadmap.md`.
 
-#### 🐛 Fixes & Improvements
+#### 🏗️ Fixes & Improvements
 - **Strict Filtering**: `get_smart_candidates` now strictly excludes tracks with `bpm=0` when `min_bpm` is requested, returning an error if strict filtering matches 0 candidates (Fixing "Silent Mode" bug).
-- **Ghost ID Protection**: `assess_playlist_quality` now gracefully handles "Song not found" errors by skipping them and returning a `warnings` field.
-- **Improved ID Sanitization**: `assess_playlist_quality` now uses robust regex extraction to handle IDs embedded in Markdown links or with trailing noise.
-- **Search Reliability**: `search_music_enriched` automatically retries with a simplified query if strict search fails (Fixing "Fuzzy Search" issue).
+- **Graceful Quality Checks**: `assess_playlist_quality` now yields warnings instead of failing when encountering "Ghost IDs" (missing tracks).
+- **Search Robustness**: Integrated `_fetch_search_results` abstraction for all search tools, providing automatic fuzzy fallback and response normalization.
 - **Tiered Similarity**: `get_similar_artists` now follows a tiered lookup (Direct Similarity -> Bio Info -> Genre Fallback) for significantly higher hit rates in diverse libraries.
+- **Improved ID Sanitization**: `assess_playlist_quality` now uses robust regex extraction to handle IDs embedded in Markdown links or with trailing noise.
+- **Version Control**: Bumped project version to `0.1.7`.
 
 ---
 

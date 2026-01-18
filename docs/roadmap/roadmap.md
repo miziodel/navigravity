@@ -6,13 +6,14 @@
 - **Gap Analysis**: Automate the "Dual Identity" check to periodically suggest missing artists.
 
 ## 🚀 Active Release: v0.1.7 (Stability & Discovery)
-**Status**: Feature Complete / Verification Phase
-**Plan**: [v0.1.7_plan.md](file:///Users/NOBKP/navigravity/docs/roadmap/active/v0.1.7_plan.md)
-**Changes**: [changelog.md](file:///Users/NOBKP/navigravity/docs/roadmap/changelog.md)
+**Status**: Released (2026-01-18)
+**Plan**: [v0.1.7_plan.md](active/v0.1.7_plan.md)
+**Changes**: [changelog.md](changelog.md)
 
 ### Delivered in v0.1.7
-- **Stability**: Ghost ID Fixes, Strict BPM Filtering (fixing "Silent Mode"), Robust Search Fallback.
-- **Tools**: `get_similar_artists`, `get_similar_songs`.
+- **Stability**: Graceful Quality Gates, Robust Search Fallback (`_fetch_search_results`), ID Sanitization.
+- **Tools**: `get_similar_artists`, `get_similar_songs`, `search_by_tag`, `validate_playlist_rules`.
+- **Discovery**: Multi-Mode Harvesting, Rediscovery V2 (Album Archeology).
 
 
 ## 🧠 Future Tool Enhancements

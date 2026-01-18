@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Maurizio Delmonte
 # SPDX-License-Identifier: MIT
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 from mcp.server.fastmcp import FastMCP
 import libsonic
@@ -184,6 +184,35 @@ def _format_song(s):
         "comment": s.get('comment', ''), 
         "path": s.get('path', '')
     }
+
+def _fetch_search_results(query: str, song_count: int = 20, album_count: int = 0, artist_count: int = 0) -> Dict:
+    """
+    Abstractions for search3 to handle normalization and retries.
+    """
+    conn = get_conn()
+    try:
+        res = conn.search3(query, songCount=song_count, albumCount=album_count, artistCount=artist_count)
+        data = res.get('searchResult3', {})
+        
+        # Normalize: ensure song/album/artist are lists even if single or empty
+        for key in ['song', 'album', 'artist']:
+            if key in data and not isinstance(data[key], list):
+                data[key] = [data[key]]
+            elif key not in data:
+                data[key] = []
+        
+        # Fuzzy Fallback: if empty and contains special chars
+        if not data.get('song') and not data.get('album') and not data.get('artist'):
+            if "&" in query or " & " in query:
+                fuzzy_query = query.replace("&", "").replace("  ", " ").strip()
+                logger.info(f"Search empty. Retrying with fuzzy query: {fuzzy_query}")
+                return _fetch_search_results(fuzzy_query, song_count, album_count, artist_count)
+        
+        return data
+    except Exception as e:
+        logger.error(f"Search failed for '{query}': {e}")
+        return {"song": [], "album": [], "artist": []}
+
 
 def _fetch_albums(criteria: str, size: int = 50, genre: str = None) -> List[Dict]:
     """
@@ -484,33 +513,146 @@ def batch_check_library_presence(query: List[Dict[str, str]]) -> str:
         
     return json.dumps(results, indent=2)
 
+@mcp.tool()
+@log_execution
+def search_by_tag(tags: List[str], logic: str = "OR") -> str:
+    """
+    Multi-genre intersection/union for 'vibe' search.
+    """
+    all_results = []
+    for tag in tags:
+        # We use our new helper which handles retries and serialization
+        results = _fetch_search_results(tag, song_count=100)
+        all_results.append(set(s['id'] for s in results.get('song', [])))
+    
+    if not all_results:
+        return json.dumps([])
+        
+    if logic.upper() == "AND":
+        # Intersection
+        final_ids = set.intersection(*all_results)
+    else:
+        # Union
+        final_ids = set.union(*all_results)
+        
+    # Fetch full objects for the final IDs
+    # Note: search3 doesn't support batch ID lookup, so we harvest from the initial results
+    # To keep it efficient, we reconstruct from the first results gathered
+    final_songs = []
+    seen = set()
+    
+    # Re-run search or simple filter? 
+    # For now, let's just do a union of all fetched songs and filter by final_ids
+    pool = []
+    for tag in tags:
+        res = _fetch_search_results(tag, song_count=100)
+        pool.extend(res.get('song', []))
+        
+    for s in pool:
+        if s['id'] in final_ids and s['id'] not in seen:
+            final_songs.append(_format_song(s))
+            seen.add(s['id'])
+            
+    return json.dumps(final_songs, indent=2)
+
+@mcp.tool()
+@log_execution
+def validate_playlist_rules(track_ids: List[str], rules: Dict) -> str:
+    """
+    Dry-run validation for diversity and mood.
+    Example rules: {"max_tracks_per_artist": 2, "exclude_genres": ["Metal"], "min_bpm": 100}
+    """
+    conn = get_conn()
+    violations = []
+    artist_counts = Counter()
+    
+    max_per_artist = rules.get("max_tracks_per_artist")
+    exclude_genres = [g.lower() for g in rules.get("exclude_genres", [])]
+    min_bpm = rules.get("min_bpm")
+    max_bpm = rules.get("max_bpm")
+
+    for tid in track_ids:
+        try:
+            # Extract ID if it's a markdown link or has trailing chars
+            clean_id = tid
+            if "(" in tid and ")" in tid:
+                match = re.search(r'\(([0-9a-f]{32})\)', tid)
+                if match: clean_id = match.group(1)
+            clean_id = clean_id.strip().strip(',')
+
+            res = conn.getSong(clean_id)
+            song = res.get('song')
+            if not song:
+                violations.append(f"Track {tid}: Not found in library.")
+                continue
+            
+            # 1. Artist Diversity
+            art = song.get('artist')
+            artist_counts[art] += 1
+            if max_per_artist and artist_counts[art] > max_per_artist:
+                violations.append(f"Track '{song.get('title')}': Exceeds max per artist ({art}).")
+            
+            # 2. Genre Exclusion
+            genre = song.get('genre', '').lower()
+            if any(eg in genre for eg in exclude_genres):
+                violations.append(f"Track '{song.get('title')}': Prohibited genre '{song.get('genre')}'.")
+            
+            # 3. BPM Range
+            bpm = song.get('bpm', 0)
+            if min_bpm and bpm > 0 and bpm < min_bpm:
+                violations.append(f"Track '{song.get('title')}': BPM {bpm} is too low (target > {min_bpm}).")
+            if max_bpm and bpm > max_bpm:
+                violations.append(f"Track '{song.get('title')}': BPM {bpm} is too high (target < {max_bpm}).")
+
+        except Exception as e:
+            violations.append(f"Track {tid}: Error during validation - {str(e)}")
+
+    return json.dumps({
+        "is_valid": len(violations) == 0,
+        "violations": violations,
+        "summary": {
+            "total_checked": len(track_ids),
+            "unique_artists": len(artist_counts)
+        }
+    }, indent=2)
+
 # --- TOOLS: DISCOVERY ---
 
 @mcp.tool()
 @log_execution
-def get_genre_tracks(genre: str, limit: int = 100) -> str:
-    """Fetches random tracks for a specific genre."""
+def get_genre_tracks(genre: Any, limit: int = 100) -> str:
+    """
+    Fetches random tracks for specific genre(s). 
+    Accepts a single string or a list of strings.
+    """
     conn = get_conn()
-    try:
-        # Try getRandomSongs with genre filter first (most efficient for discovery)
-        # Note: libsonic might not support genre arg in getRandomSongs directly in all versions,
-        # but Subsonic API 1.16.1+ supports it.
-        # If kwargs are passed through, this works.
-        res = conn.getRandomSongs(size=limit, genre=genre)
-        songs = res.get('randomSongs', {}).get('song', [])
-        
-        # Fallback: if empty, maybe try getSongsByGenre if it exists (usually for specific browsing)
-        if not songs:
-            try:
-                # Some clients/servers use this
-                res = conn.getSongsByGenre(genre, count=limit)
+    genres = [genre] if isinstance(genre, str) else genre
+    all_songs = []
+    
+    # Calculate limit per genre if multiple
+    per_genre_limit = limit if len(genres) == 1 else (limit // len(genres)) + 1
+    
+    for g in genres:
+        try:
+            # Try getRandomSongs with genre filter
+            res = conn.getRandomSongs(size=per_genre_limit, genre=g)
+            songs = res.get('randomSongs', {}).get('song', [])
+            
+            if not songs:
+                # Fallback
+                res = conn.getSongsByGenre(g, count=per_genre_limit)
                 songs = res.get('songsByGenre', {}).get('song', [])
-            except:
-                pass
-                
-        output = [_format_song(s) for s in songs]
-        return json.dumps(output, indent=2)
-    except Exception as e: return str(e)
+                    
+            all_songs.extend([_format_song(s) for s in songs])
+        except Exception as e:
+            logger.warning(f"Failed to fetch tracks for genre '{g}': {e}")
+            
+    # Deduplicate and shuffle
+    unique_songs = {s['id']: s for s in all_songs}
+    final_list = list(unique_songs.values())
+    random.shuffle(final_list)
+    
+    return json.dumps(final_list[:limit], indent=2)
 
 
 @mcp.tool()
@@ -701,262 +843,180 @@ def get_smart_candidates(
     Generates lists based on stats with advanced filtering.
     
     Args:
-        mode: recently_added, most_played, top_rated, lowest_rated, rediscover, hidden_gems, unheard_favorites, divergent
+        mode: recently_added, most_played, top_rated, lowest_rated, rediscover, rediscover_deep, 
+              hidden_gems, unheard_favorites, divergent, fallen_pillars, similar_to_starred.
+              Accepts comma-separated list of modes.
         limit: Max tracks to return (default 50)
         include_genres: List of genres to strictly include (case-insensitive partial match)
         exclude_genres: List of genres to exclude
         min_bpm: Minimum BPM
         max_bpm: Maximum BPM
-        mood: 'relax' (low BPM, no heavy genres), 'energy' (high BPM, upbeat genres), etc.
+        mood: 'relax', 'energy', 'focus', etc.
         max_tracks_per_artist: Diversity constraint
     """
     conn = get_conn()
     try:
-        # --- 1. MOOD MAPPING (INFERENCE) ---
-        # Map high-level mood to low-level technical constraints
+        # --- 1. MOOD MAPPING ---
         if mood:
             mood = mood.lower()
             if mood == "relax":
-                # Implicit filters: Slow to mid tempo, avoid aggressive genres
                 if max_bpm is None: max_bpm = 115
                 if exclude_genres is None: exclude_genres = []
                 exclude_genres.extend(["Metal", "Hard Rock", "Punk", "Industrial", "Techno", "Drum and Bass"])
-            elif mood == "energy" or mood == "workout":
+            elif mood in ["energy", "workout"]:
                 if min_bpm is None: min_bpm = 120
-                if include_genres is None: include_genres = []
-                # We don't strictly enforce include_genres for energy as many genres can be energetic,
-                # but we rely on BPM. Optionally we could favor Pop/Rock/Electronic.
             elif mood == "focus":
                 if exclude_genres is None: exclude_genres = []
-                exclude_genres.extend(["Pop", "Hip-Hop", "Rap", "Vocal"]) # Try to avoid distracting lyrics
+                exclude_genres.extend(["Pop", "Hip-Hop", "Rap", "Vocal"])
                 
-        # --- 2. FETCH CANDIDATES (Raw Pool) ---
-        # We fetch a larger pool to allow for filtering attrition
-        fetch_limit = limit * 5 if (include_genres or exclude_genres or min_bpm or max_bpm) else limit * 2
-        # Cap fetch limit to avoid timeout
-        if fetch_limit > 500: fetch_limit = 500
-        
+        # --- 2. MULTI-MODE DISPATCH ---
+        modes = [m.strip() for m in mode.split(",")]
         candidates = []
-        # ... fetch logic per mode ...
-        
-        if mode == "recently_added":
-            albums = _fetch_albums("newest", size=fetch_limit)
-            # Just return representative tracks (track 1) from new albums for discovery
-            for alb in albums:
-                 try:
-                     # Peek at first song
-                     res = conn.getMusicDirectory(alb['id'])
-                     songs = res.get('directory', {}).get('child', [])
-                     if songs:
-                         # Filter only songs
-                         songs = [s for s in songs if not s.get('isDir')]
-                         if songs: candidates.append(_format_song(songs[0]))
-                 except: continue
+        today = datetime.datetime.now()
 
-        elif mode == "most_played":
-            # Heuristic: Get frequent albums, then extract their top songs
-            # INCREASED SIZE: Fetch more albums to ensure we get a true Top 30+ even if some albums are short
-            frequent_albums = _fetch_albums("frequent", size=fetch_limit)  
-            all_tracks = []
-            for alb in frequent_albums:
-                try:
-                    res = conn.getMusicDirectory(alb['id'])
-                    songs = res.get('directory', {}).get('child', [])
-                    all_tracks.extend([s for s in songs if not s.get('isDir')])
-                except: continue
-            
-            # Sort all gathered tracks by playCount
-            all_tracks.sort(key=lambda x: x.get('playCount', 0), reverse=True)
-            # Remove duplicates based on ID (though rare here)
-            seen = set()
-            for t in all_tracks:
-                if t['id'] not in seen:
-                    candidates.append(_format_song(t))
-                    seen.add(t['id'])
+        for current_mode in modes:
+            pool = []
+            fetch_limit = limit * 2 if len(modes) > 1 else limit * 5
+            if fetch_limit > 500: fetch_limit = 500
 
-        elif mode == "top_rated":
-            # 1. Get Starred Songs
-            starred_res = conn.getStarred()
-            if 'starred' in starred_res and 'song' in starred_res['starred']:
-                candidates.extend([_format_song(s) for s in starred_res['starred']['song']])
-            
-            # 2. Get High Rated (Hearts) - Heuristic via random sampling if no direct endpoint
-            # We assume userRating >= 3 is "Good"
-            # Note: A full scan is expensive, so we sample heavily
-            pool = conn.getRandomSongs(size=500)
-            if 'randomSongs' in pool and 'song' in pool['randomSongs']:
-                for s in pool['randomSongs']['song']:
-                    if s.get('userRating', 0) >= 3:
-                        candidates.append(_format_song(s))
-            
-            # Deduplicate by ID
-            unique_candidates = {c['id']: c for c in candidates}
-            candidates = list(unique_candidates.values())
-            
-            # Sort: Priority to Play Count (Active Favorites)
-            candidates.sort(key=lambda x: x.get('playCount', 0), reverse=True)
-
-        elif mode == "lowest_rated":
-            # Hunt for tracks with userRating 1 or 2
-            # DEEP SCAN: Retries to find enough candidates
-            found_count = 0
-            retries = 3
-            sample_size = fetch_limit * 2 # Aggressive sampling
-            
-            for _ in range(retries):
-                if found_count >= limit: break
-                
-                pool = conn.getRandomSongs(size=sample_size)
-                if 'randomSongs' in pool and 'song' in pool['randomSongs']:
-                    for s in pool['randomSongs']['song']:
-                        rating = s.get('userRating', 0)
-                        if 1 <= rating <= 2:
-                            fmt = _format_song(s)
-                            # Avoid duplicates across retries
-                            if not any(c['id'] == fmt['id'] for c in candidates):
-                                candidates.append(fmt)
-                                found_count += 1
-            
-            # Sort by play count (maybe you hate-listened to them?)
-            candidates.sort(key=lambda x: x.get('playCount', 0), reverse=True)
-
-        elif mode in ["rediscover", "forgotten_favorites", "hidden_gems"]:
-            pool = conn.getRandomSongs(size=fetch_limit * 2) # Fetch extra for date filtering
-            today = datetime.datetime.now()
-            if 'randomSongs' in pool and 'song' in pool['randomSongs']:
-                for s in pool['randomSongs']['song']:
-                    lp_str = s.get('played')
-                    pc = s.get('playCount', 0)
-                    starred = "starred" in s
-                    
-                    if mode == "hidden_gems" and pc == 0:
-                        candidates.append(_format_song(s))
-                        continue
-                        
-                    if lp_str:
-                        # Handle potential Z timezone or no Z
-                        try:
-                            lp_date = datetime.datetime.fromisoformat(lp_str.replace("Z", ""))
-                            days = (today - lp_date).days
-                            if mode == "rediscover" and days > 365 and pc > 2:
-                                candidates.append(_format_song(s))
-                            elif mode == "forgotten_favorites" and days > 180 and starred:
-                                candidates.append(_format_song(s))
-                        except ValueError:
-                            pass # Skip if date parsing fails
-
-        elif mode == "unheard_favorites":
-            # 1. Fetch starred albums
-            albums = _fetch_albums("starred", size=200)
-            
-            # 2. Randomize albums to inspect
-            if albums:
-                random.shuffle(albums)
-                target_raw = fetch_limit * 2
-                raw_candidates = []
-                
+            if current_mode == "recently_added":
+                albums = _fetch_albums("newest", size=fetch_limit)
                 for alb in albums:
-                    if len(raw_candidates) >= target_raw:
-                        break
                     try:
-                        songs_res = conn.getMusicDirectory(alb['id'])
-                        songs = songs_res.get('directory', {}).get('child', [])
-                        random.shuffle(songs)
-                        for s in songs:
-                            if not s.get('isDir') and s.get('playCount', 0) == 0:
-                                raw_candidates.append(_format_song(s))
-                    except:
-                        continue
-                
-                # 3. Diversity Filter
-                by_artist = {}
-                for c in raw_candidates:
-                    art = c['artist']
-                    if art not in by_artist: by_artist[art] = []
-                    by_artist[art].append(c)
-                
-                candidates = []
-                artists = list(by_artist.keys())
-                random.shuffle(artists)
-                
-                while len(candidates) < limit and artists:
-                    for art in list(artists):
-                        if len(candidates) >= limit: break
-                        if by_artist[art]:
-                            candidates.append(by_artist[art].pop(0))
-                        else:
-                            artists.remove(art)
-                            
-        elif mode == "divergent":
-            # Logic from former get_divergent_recommendations
-            freq = _fetch_albums("frequent", size=20)
-            top_genres = {a.get('genre') for a in freq if a.get('genre')}
-            all_genres = [g['value'] for g in conn.getGenres().get('genres', {}).get('genre', [])]
-            divergent = list(set(all_genres) - top_genres)
-            
-            if not divergent:
-                 return "No divergence found."
-            
-            random.shuffle(divergent)
-            for g in divergent[:3]:
-                res = conn.getRandomSongs(size=5, genre=g)
-                if 'song' in res.get('randomSongs', {}):
-                    candidates.extend([_format_song(s) for s in res['randomSongs']['song']])
+                        res = conn.getMusicDirectory(alb['id'])
+                        songs = [s for s in res.get('directory', {}).get('child', []) if not s.get('isDir')]
+                        if songs: pool.append(_format_song(songs[0]))
+                    except: continue
 
-        # --- 3. FILTERING ---
-        raw_candidates_count = len(candidates)
-        filtered_candidates = []
-        
-        for cand in candidates:
-            # Genre Filter
-            genre_val = cand.get('genre', '').lower()
-            if include_genres:
-                if not any(incl.lower() in genre_val for incl in include_genres):
-                    continue
-            if exclude_genres:
-                if any(excl.lower() in genre_val for excl in exclude_genres):
-                    continue
-                    
-            # BPM Filter
-            bpm_val = cand.get('bpm', 0)
-            if min_bpm:
-                # Strict check: Exclude if BPM is unknown (0) or less than min
-                # Note: Navidrome returns 0 for unknown BPM.
-                if bpm_val < min_bpm: continue
-            if max_bpm and bpm_val > 0:
-                if bpm_val > max_bpm: continue
+            elif current_mode == "most_played":
+                frequent_albums = _fetch_albums("frequent", size=fetch_limit)
+                for alb in frequent_albums:
+                    try:
+                        res = conn.getMusicDirectory(alb['id'])
+                        pool.extend([_format_song(s) for s in res.get('directory', {}).get('child', []) if not s.get('isDir')])
+                    except: continue
+                pool.sort(key=lambda x: x.get('play_count', 0), reverse=True)
+
+            elif current_mode == "top_rated":
+                starred_res = conn.getStarred()
+                if 'starred' in starred_res and 'song' in starred_res['starred']:
+                    pool.extend([_format_song(s) for s in starred_res['starred']['song']])
                 
-            filtered_candidates.append(cand)
-            
-        candidates = filtered_candidates
-        
-        # Breaking Change: Fail Fast if strict filtering removed everything
-        # This helps the Agent realize its constraints are too tight (e.g. BPM filter on untagged library)
-        if not candidates and (mood or min_bpm or max_bpm) and mode in ["top_rated", "most_played", "recently_added"]:
-             return f"Error: Strict filtering (Mood/BPM) matched 0 candidates out of {raw_candidates_count} raw items. Try relaxing constraints (e.g. remove mood)."
-        
-        # --- 4. DIVERSITY & PAGINATION ---
-        # Deduplicate by ID
+                # Sample high rated
+                random_pool = conn.getRandomSongs(size=fetch_limit)
+                if 'randomSongs' in random_pool and 'song' in random_pool['randomSongs']:
+                    pool.extend([_format_song(s) for s in random_pool['randomSongs']['song'] if s.get('userRating', 0) >= 3])
+
+            elif current_mode == "rediscover": # V2: Album Archeology
+                # Shift from random songs to random albums for better coherence
+                alb_pool = _fetch_albums("random", size=20)
+                for alb in alb_pool:
+                     try:
+                         res = conn.getMusicDirectory(alb['id'])
+                         songs = [s for s in res.get('directory', {}).get('child', []) if not s.get('isDir')]
+                         if songs:
+                             # Pick a random track from the album
+                             pool.append(_format_song(random.choice(songs)))
+                     except: continue
+
+            elif current_mode == "rediscover_deep":
+                # Iterative random mining loop
+                seen_ids = set()
+                passes = 5
+                for _ in range(passes):
+                    if len(pool) >= limit: break
+                    batch = conn.getRandomSongs(size=100)
+                    if 'randomSongs' in batch and 'song' in batch['randomSongs']:
+                        for s in batch['randomSongs']['song']:
+                            lp_str = s.get('played')
+                            if lp_str and s['id'] not in seen_ids:
+                                lp_date = datetime.datetime.fromisoformat(lp_str.replace("Z", ""))
+                                if (today - lp_date).days > 365:
+                                    pool.append(_format_song(s))
+                                    seen_ids.add(s['id'])
+
+            elif current_mode == "hidden_gems":
+                batch = conn.getRandomSongs(size=500)
+                if 'randomSongs' in batch and 'song' in batch['randomSongs']:
+                    pool.extend([_format_song(s) for s in batch['randomSongs']['song'] if s.get('playCount', 0) == 0])
+
+            elif current_mode == "fallen_pillars":
+                # Identify top artists and scan for forgotten tracks
+                pillars = json.loads(analyze_library(mode="pillars"))[:10]
+                for p in pillars:
+                    try:
+                        # getArtist returns albums, we need tracks
+                        res = conn.getArtist(p['id'])
+                        albums = res.get('artist', {}).get('album', [])
+                        for alb in albums[:3]: # Scan top 3 albums
+                            songs_res = conn.getMusicDirectory(alb['id'])
+                            for s in songs_res.get('directory', {}).get('child', []):
+                                if not s.get('isDir'):
+                                    lp_str = s.get('played')
+                                    if not lp_str or (today - datetime.datetime.fromisoformat(lp_str.replace("Z", ""))).days > 365:
+                                        pool.append(_format_song(s))
+                    except: continue
+
+            elif current_mode == "similar_to_starred":
+                starred = conn.getStarred()
+                if 'starred' in starred and 'song' in starred['starred']:
+                    seeds = random.sample(starred['starred']['song'], min(3, len(starred['starred']['song'])))
+                    for seed in seeds:
+                        try:
+                            sim = conn.getSimilarSongs2(seed['id'], count=10)
+                            pool.extend([_format_song(s) for s in sim.get('similarSongs2', {}).get('song', [])])
+                        except: continue
+
+            elif current_mode == "divergent":
+                 # (Legacy divergent logic kept as fallback)
+                 freq = _fetch_albums("frequent", size=10)
+                 top_genres = {a.get('genre') for a in freq if a.get('genre')}
+                 all_genres = [g['name'] for g in json.loads(get_genres())]
+                 divergent = list(set(all_genres) - top_genres)
+                 if divergent:
+                     random.shuffle(divergent)
+                     for g in divergent[:3]:
+                         res = conn.getRandomSongs(size=5, genre=g)
+                         if 'randomSongs' in res:
+                             pool.extend([_format_song(s) for s in res['randomSongs'].get('song', [])])
+
+            candidates.extend(pool)
+
+        # --- 3. FILTERING & DIVERSITY ---
         unique_candidates = {c['id']: c for c in candidates}
         candidates = list(unique_candidates.values())
-
-        if mode not in ["most_played", "top_rated"]:
-            random.shuffle(candidates)
+        
+        filtered = []
+        for c in candidates:
+            # Genre
+            gv = c.get('genre', '').lower()
+            if include_genres and not any(i.lower() in gv for i in include_genres): continue
+            if exclude_genres and any(e.lower() in gv for e in exclude_genres): continue
+            # BPM
+            bv = c.get('bpm', 0)
+            if min_bpm and bv < min_bpm: continue
+            if max_bpm and bv > 0 and bv > max_bpm: continue
+            filtered.append(c)
             
-        # Diversity Constraint (Max Tracks Per Artist)
-        if max_tracks_per_artist:
-            artist_counts = Counter()
-            final_diversity_list = []
-            for c in candidates:
-                art = c.get('artist')
-                if artist_counts[art] < max_tracks_per_artist:
-                    final_diversity_list.append(c)
-                    artist_counts[art] += 1
-            candidates = final_diversity_list
+        if not filtered and (mood or min_bpm):
+            return "Error: Strict filtering eliminated all candidates. Try removing mood/BPM constraints."
 
-        return json.dumps(candidates[:limit], indent=2)
-    except Exception as e: 
-        logger.error(f"Error in get_smart_candidates mode={mode}: {e}", exc_info=True)
+        # Diversify
+        if max_tracks_per_artist:
+            counts = Counter()
+            final = []
+            for c in filtered:
+                art = c['artist']
+                if counts[art] < max_tracks_per_artist:
+                    final.append(c)
+                    counts[art] += 1
+            filtered = final
+
+        random.shuffle(filtered)
+        return json.dumps(filtered[:limit], indent=2)
+
+    except Exception as e:
+        logger.error(f"get_smart_candidates failed: {e}", exc_info=True)
         return str(e)
 
 
@@ -1028,40 +1088,22 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
         songs = []
         warnings = []
         
-        # Validation Regex (32-char hex)
-        id_pattern = re.compile(r'^[a-fA-F0-9]{32}$')
-
         for sid_raw in song_ids:
-            # 0. Sanitization (Extraction from noisy strings like Markdown links or trailing punctuation)
-            # Regex extracts the FIRST 32-char hex string found in the input
+            # logic: regex extracts the FIRST 32-char hex string found in the input
             match = re.search(r'([0-9a-fA-F]{32})', sid_raw)
             if not match:
                 warnings.append(f"{sid_raw} (Invalid ID Format)")
                 continue
             
             sid = match.group(1)
-
-            # 2. Fetch with Retry (The "Ghost ID" Fix)
-            # Try 1
-            s = None
             try:
                 res = conn.getSong(sid)
                 s = res.get('song')
+                if s: 
+                    songs.append(s)
+                else:
+                    warnings.append(f"{sid} (Not found in library)")
             except Exception:
-                pass
-            
-            # Try 2 (Retry)
-            if not s:
-                time.sleep(0.1) # Brief pause for consistency
-                try:
-                    res = conn.getSong(sid)
-                    s = res.get('song')
-                except Exception:
-                    pass
-            
-            if s: 
-                songs.append(s)
-            else:
                 warnings.append(sid)
 
         if not songs: 
@@ -1093,28 +1135,9 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
 @log_execution
 def search_music_enriched(query: str, limit: int = 20) -> str:
     """Standard search with full metadata."""
-    conn = get_conn()
-    
-    def perform_search(q):
-        resp = conn.search3(q, songCount=limit)
-        container = resp.get('searchResult3', {})
-        results = []
-        if 'song' in container: 
-            sl = container['song']
-            if isinstance(sl, dict): sl = [sl]
-            results = [_format_song(s) for s in sl]
-        return results
-
-    formatted_results = perform_search(query)
-    
-    # Fuzzy Fallback Logic
-    # If strict results are empty and query contains potentially complex chars like "&", try simplifying
-    if not formatted_results and " & " in query:
-        fallback_query = query.replace(" & ", " ")
-        logger.info(f"Strict search failed for '{query}'. Retrying fallback: '{fallback_query}'")
-        formatted_results = perform_search(fallback_query)
-        
-    return json.dumps(formatted_results, indent=2)
+    results = _fetch_search_results(query, song_count=limit)
+    formatted = [_format_song(s) for s in results.get('song', [])]
+    return json.dumps(formatted, indent=2)
 
 
 if __name__ == "__main__":
