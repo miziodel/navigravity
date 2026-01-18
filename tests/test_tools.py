@@ -44,18 +44,22 @@ def test_get_smart_candidates_recently_added(mock_conn):
 def test_get_smart_candidates_rediscover(mock_conn):
     """Test 'rediscover' mode which filters by date and play count."""
     # Setup mock return
-    id1 = "a" * 32
-    id2 = "b" * 32
-    mock_conn.getRandomSongs.return_value = {
-        'randomSongs': {
-            'song': [
-                {
-                    'id': id1, 'title': 'Old Favorite', 'artist': 'Artist A',
-                    'played': '2020-01-01T10:00:00Z', 'playCount': 10
-                },
-                {
-                    'id': id2, 'title': 'New Song', 'artist': 'Artist B',
-                    'played': '2025-01-01T10:00:00Z', 'playCount': 1
+    # rediscover mode V2 uses _fetch_albums("random") then getMusicDirectory
+    
+    mock_conn.getAlbumList2.return_value = {
+        'albumList2': {
+            'album': [
+                {'id': 'alb1', 'title': 'Old Album', 'artist': 'Artist A'}
+            ]
+        }
+    }
+    
+    mock_conn.getMusicDirectory.return_value = {
+        'directory': {
+            'child': [
+                 {
+                    'id': 's1', 'title': 'Old Favorite', 'artist': 'Artist A',
+                    'played': '2020-01-01T10:00:00Z', 'playCount': 10, 'isDir': False
                 }
             ]
         }
@@ -166,6 +170,9 @@ def test_get_similar_artists_fallback(mock_conn):
         }
     }
     
+    # Ensure primary method fails/returns empty so it falls back
+    mock_conn.getSimilarArtists.side_effect = Exception("Not found")
+
     # 2. Mock getArtistInfo2 for similar artists
     mock_conn.getArtistInfo2.return_value = {
         'artistInfo2': {
@@ -186,7 +193,7 @@ def test_get_similar_artists_fallback(mock_conn):
     assert data[1]['id'] == 'genesis_id'
     
     # Verify calls
-    mock_conn.search3.assert_called_once_with("Pink Floyd", artistCount=1)
+    mock_conn.search3.assert_called_once_with("Pink Floyd", artistCount=5)
     mock_conn.getArtistInfo2.assert_called_once_with('pink_floyd_id', count=20)
 
 def test_get_similar_artists_genre_fallback_source(mock_conn):
@@ -196,9 +203,10 @@ def test_get_similar_artists_genre_fallback_source(mock_conn):
         'searchResult3': {'artist': [{'id': 'target_id', 'name': 'Target', 'genre': 'Rock'}]}
     }
     
-    # 2. Mock getArtistInfo2 (Returns NO similar artists)
-    mock_conn.getArtistInfo2.return_value = {'artistInfo2': {'similarArtist': []}}
-    
+    # Ensure earlier methods empty
+    mock_conn.getSimilarArtists.side_effect = Exception("Not found")
+    mock_conn.getArtistInfo2.side_effect = Exception("Not found") # or return empty
+
     # 3. Mock explore_genre helpers (Returns genre peers)
     # The tool calls: _fetch_albums("byGenre", ...) -> ...
     # We can mock the internal calls or just mock _fetch_albums if we could, 

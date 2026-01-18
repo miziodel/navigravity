@@ -42,3 +42,7 @@ Every bug fix or new tool MUST follow this cycle:
 - **Manifesto**: New discovery logic should be mirrored in the `curator//manifesto` resource.
 - **Handshake**: Ensure `navidrome://info` reflects any new capabilities added to the server.
 - **README**: Public-facing changes must be documented in the root `README.md`.
+
+## 6. Release Protocol
+- **Version Lock**: When updating `__version__` in `src/navidrome_mcp_server.py`, you MUST update `version` in `pyproject.toml` in the same Task.
+- **Workflow**: Use the `release_check` workflow before confirming any version bump.

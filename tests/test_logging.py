@@ -63,8 +63,12 @@ def test_logging_quality_assessment(mock_conn, caplog):
     # Mock getSong
     mock_conn.getSong.side_effect = lambda id: {'song': {'id': id, 'artist': 'Artist A'}}
     
+    # Use valid 32-char hex IDs to pass validator
+    id1 = "a" * 32
+    id2 = "b" * 32
+    
     with caplog.at_level(logging.INFO, logger="navidrome_mcp"):
-        assess_playlist_quality(["1", "2"])
+        assess_playlist_quality([id1, id2])
         
     record = caplog.records[0]
     assert record.tool == "assess_playlist_quality"

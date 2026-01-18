@@ -39,9 +39,6 @@ logger = logging.getLogger("navidrome_mcp")
 logger.setLevel(logging.INFO)
 
 # File Handler (JSON) - Writable by user running the script
-# --- LOGGING SETUP ---
-logger = logging.getLogger("navidrome_mcp")
-logger.setLevel(logging.INFO)
 
 # Formatter
 formatter = jsonlogger.JsonFormatter(
@@ -668,7 +665,6 @@ def get_similar_artists(artist_id: Optional[str] = None, artist_name: Optional[s
         
         # 1. Resolve Name if ID is missing
         if not target_id and artist_name:
-            search_res = conn.search3(artist_name, artist_name=True) 
             # Use artistCount=5 to allow for a more fuzzy match if needed, then filter
             search_res = conn.search3(artist_name, artistCount=5)
             artists = search_res.get('searchResult3', {}).get('artist', [])
