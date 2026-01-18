@@ -1,5 +1,20 @@
 # NaviGravity Changelog
 
+### Infrastructure & Governance Upgrades (2026-01-18)
+
+#### 🏗️ Infrastructure & Rules
+- **Project Identity**: Established the `Senior Methodical Engineer` persona in `.agent/rules/01-identity.md`.
+- **MCP Standards**: Codified professional standards (logging, validation, TDD) in `.agent/skills/mcp-development/SKILL.md`.
+- **Governance**: Implemented mandatory planning protocols and documentation integrity checks in `.agent/rules/05-planning-standard.md`.
+- **Discovery Handshake**: Created `.agent/rules/02-handshake-discovery.md` to ensure server resources (Manifesto, Handshake) stay in sync with architecture docs.
+
+#### 🔄 Workflows
+- **Plan & Execute**: Standardized the dev lifecycle in `.agent/workflows/plan-and-execute.md`.
+- **Session Cleanup**: Refined `.agent/workflows/cleanup-session.md` with strict isolation and staged-only commit protocols.
+
+#### 📝 Project Metadata
+- **Metadata Automation**: Updated `docs/metadata.json` and `docs/roadmap/prioritized_roadmap.md` to reflect current state.
+
 ### v0.1.7 - Stability & Discovery (2026-01-17)
 
 #### ✨ New Features

@@ -1,7 +1,7 @@
 # Prioritized Roadmap
 
 ## 🚨 CRITICAL / IMMEDIATE
-- [ ] **[META] Antigravity Configuration Improvements** (Next Session)
+- [x] **[META] Antigravity Configuration Improvements** (Done)
     - **Goal**: Automate "Living Documentation" and "Self-Publishing" checks via Agent Rules.
     - **Actions**:
         - Create `.agent/rules/05-planning-standard.md`.
@@ -10,7 +10,7 @@
     - **Why**: To ensure every future implementation plan automatically considers documentation integrity.
 
 ## 🔴 Priority 1 (v0.1.7-beta)
-- [ ] **Robustness & Reliability** (In Progress)
+- [/] **Robustness & Reliability** (In Progress)
     - ID Santization in `assess_playlist_quality`.
     - Similarity Fallback in `get_similar_artists`.
     - TDD Enforcement.
