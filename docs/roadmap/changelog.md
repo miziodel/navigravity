@@ -1,5 +1,16 @@
 # NaviGravity Changelog
 
+### v0.1.8 - Smart Selection (2026-01-18)
+
+#### ✨ New Features
+- **Smart Scoring Logic**: Implemented a point-based scoring system to improve track selection.
+    - **Formula**: Neutral (3), Stars (+1 per star), Heart (+5).
+- **Intelligent Selection**: `get_smart_candidates` now sorts results by `smart_score` (Descending) and shuffles the top tier to ensure both quality and discovery variety.
+
+#### 🏗️ Fixes & Improvements
+- **Version Control**: Bumped project version to `0.1.8`.
+
+
 ### Infrastructure & Governance Upgrades (2026-01-18)
 
 #### 🏗️ Infrastructure & Rules

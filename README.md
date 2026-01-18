@@ -106,8 +106,9 @@ The agent has access to the following tools:
     -   `batch_check_library_presence`: Verification tool to find gaps (Missing Music) in bulk.
 
 -   **Discovery & Recommendation**:
-    -   `get_smart_candidates(mode)`: Statistical discovery engine.
-        -   Modes: `rediscover`, `hidden_gems`, `unheard_favorites`, `lowest_rated`, `divergent` (breaks filter bubble).
+    - `get_smart_candidates(mode)`: Statistical discovery engine.
+        - **Smart Selection**: Automatically ranks candidates by `smart_score` (Neutral=3, Stars=+1, Heart=+5).
+        - Modes: `rediscover`, `hidden_gems`, `unheard_favorites`, `lowest_rated`, `divergent` (breaks filter bubble).
     -   `get_similar_artists`: Finds relational bridges. Automatically falls back to "Genre Peers" if canonical data is missing.
     -   `get_similar_songs`: "Radio Mode" for finding sonically resonant tracks.
     -   `get_genres` / `explore_genre`: Deep dive into specific genres.

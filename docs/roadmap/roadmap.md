@@ -2,6 +2,7 @@
 
 ## 🗺️ Roadmap (Backlog)
 
+- **Smart Scoring**: Revise recommendation scoring (Default 3, Stars +1, Heart +5).
 - **Remote Access (SSE)**: Implement Server-Sent Events (SSE) transport to allow remote clients to connect to NaviGravity (currently local stdio only).
 - **Gap Analysis**: Automate the "Dual Identity" check to periodically suggest missing artists.
 
@@ -13,7 +14,7 @@
 ### Delivered in v0.1.7
 - **Stability**: Graceful Quality Gates, Robust Search Fallback (`_fetch_search_results`), ID Sanitization.
 - **Tools**: `get_similar_artists`, `get_similar_songs`, `search_by_tag`, `validate_playlist_rules`.
-- **Discovery**: Multi-Mode Harvesting, Rediscovery V2 (Album Archeology).
+- **Discovery**: Multi-Mode Harvesting, Rediscovery V2 (Album Archeology), **Smart Selection Logic (v0.1.8)**.
 
 
 ## 🧠 Future Tool Enhancements

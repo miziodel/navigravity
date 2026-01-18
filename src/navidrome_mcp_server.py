@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Maurizio Delmonte
 # SPDX-License-Identifier: MIT
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 
 from mcp.server.fastmcp import FastMCP
 import libsonic
@@ -162,8 +162,32 @@ def get_conn():
         appName="AntigravityMCP"
     )
 
+def _calculate_smart_score(s: Dict) -> int:
+    """
+    Calculates the 'Smart Score' based on user ratings and favorites.
+    Formula:
+        - Neutral (No Heart, No Star) = 3
+        - Heart = +5
+        - Stars = 1 per star
+        - Combined = Stars + Heart
+    """
+    rating = s.get('userRating', 0)
+    # Check explicitly for True because key is always present in formatted song
+    is_starred = s.get('starred') is True
+    
+    # If no interaction at all, return Neutral (3)
+    if rating == 0 and not is_starred:
+        return 3
+        
+    score = 0
+    if is_starred:
+        score += 5
+    
+    score += rating
+    return score
+
 def _format_song(s):
-    return {
+    formatted = {
         "id": s.get('id'),
         "title": s.get('title'),
         "artist": s.get('artist'),
@@ -181,6 +205,9 @@ def _format_song(s):
         "comment": s.get('comment', ''), 
         "path": s.get('path', '')
     }
+    
+    formatted["smart_score"] = _calculate_smart_score(formatted)
+    return formatted
 
 def _fetch_search_results(query: str, song_count: int = 20, album_count: int = 0, artist_count: int = 0) -> Dict:
     """
@@ -1000,16 +1027,26 @@ def get_smart_candidates(
         # Diversify
         if max_tracks_per_artist:
             counts = Counter()
-            final = []
+            final_div = []
             for c in filtered:
                 art = c['artist']
                 if counts[art] < max_tracks_per_artist:
-                    final.append(c)
+                    final_div.append(c)
                     counts[art] += 1
-            filtered = final
+            filtered = final_div
 
-        random.shuffle(filtered)
-        return json.dumps(filtered[:limit], indent=2)
+        # --- 4. SMART SELECTION (New Sort Logic) ---
+        # Sort by Smart Score Descending to prioritize better tracks
+        filtered.sort(key=lambda x: x.get('smart_score', 0), reverse=True)
+        
+        # Take the top bucket (Limit * 2) to maintain quality but allow variety
+        top_tier = filtered[:limit*2]
+        
+        # Shuffle the top tier for variety
+        random.shuffle(top_tier)
+        
+        # Return limit
+        return json.dumps(top_tier[:limit], indent=2)
 
     except Exception as e:
         logger.error(f"get_smart_candidates failed: {e}", exc_info=True)
