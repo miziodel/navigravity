@@ -92,6 +92,25 @@ def test_assess_quality_partial_failure_ghost_ids(mock_conn):
     assert any("ghost" in w for w in data['warnings'])
     assert data['diversity_score'] == 0.5 # 1 artist / 2 songs = 0.5
 
+def test_assess_quality_markdown_extraction(mock_conn):
+    """
+    TDD: Test refined ID sanitization.
+    Should extract ID from format: "[Title](32charid)" or "32charid,"
+    """
+    valid_id = "a" * 32
+    noisy_id1 = f"[{valid_id}](http://example.com)"
+    noisy_id2 = f"{valid_id},"
+    
+    def get_song_side_effect(id):
+        return {'song': {'id': id, 'artist': 'Art', 'title': 'Song'}}
+    mock_conn.getSong.side_effect = get_song_side_effect
+
+    result = assess_playlist_quality([noisy_id1, noisy_id2])
+    data = json.loads(result)
+
+    assert data['total_tracks'] == 2
+    assert 'warnings' not in data
+
 def test_strict_params_bpm_loophole(mock_conn):
     """
     TDD: Test fix for BPM Loophole.

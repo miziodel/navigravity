@@ -526,7 +526,9 @@ def get_similar_artists(artist_id: Optional[str] = None, artist_name: Optional[s
         
         # 1. Resolve Name if ID is missing
         if not target_id and artist_name:
-            search_res = conn.search3(artist_name, artistCount=1)
+            search_res = conn.search3(artist_name, artist_name=True) 
+            # Use artistCount=5 to allow for a more fuzzy match if needed, then filter
+            search_res = conn.search3(artist_name, artistCount=5)
             artists = search_res.get('searchResult3', {}).get('artist', [])
             if not artists:
                 return f"Error: Artist '{artist_name}' not found in library."
@@ -538,24 +540,36 @@ def get_similar_artists(artist_id: Optional[str] = None, artist_name: Optional[s
         if not target_id:
             return "Error: Either artist_id or artist_name must be provided."
 
-        # 2. Fetch using getArtistInfo2 (Fallback for missing getSimilarArtists in libsonic)
-        # ArtistInfo2 returns {'artistInfo2': {'similarArtist': [...]}}
-        res = conn.getArtistInfo2(target_id, count=limit)
-        info = res.get('artistInfo2', {})
-        similar_artists = info.get('similarArtist', [])
+        # 2. Tiered Discovery Logic
+        similar_artists = []
+        source_type = "canonical"
+
+        # Attempt A: getSimilarArtists (Most direct)
+        try:
+             res = conn.getSimilarArtists(target_id, count=limit)
+             similar_artists = res.get('similarArtists', {}).get('artist', [])
+             if similar_artists: source_type = "canonical_similar"
+        except Exception:
+             pass
+        
+        # Attempt B: getArtistInfo2 (Secondary / Bio-based)
         if not similar_artists:
-            # --- FALLBACK: Genre-Based Similarity ---
             try:
-                # Need genre. If we resolved by Name, we might have it. If by ID, fetch it.
+                res = conn.getArtistInfo2(target_id, count=limit)
+                info = res.get('artistInfo2', {})
+                similar_artists = info.get('similarArtist', [])
+                if similar_artists: source_type = "canonical_info"
+            except Exception:
+                pass
+
+        # Attempt C: Genre-Based Fallback
+        if not similar_artists:
+            try:
+                # Need genre.
                 genre = None
-                if artist_name and 'artists' in locals(): # reuse search cache if avail
-                     # artists variable from name resolution block
-                     if artists: genre = artists[0].get('genre')
-                
-                if not genre:
-                     # Fetch artist details to get genre
-                     art_info = conn.getArtist(target_id)
-                     genre = art_info.get('artist', {}).get('genre')
+                # Fetch artist details to get genre
+                art_info = conn.getArtist(target_id)
+                genre = art_info.get('artist', {}).get('genre')
 
                 if genre:
                     logger.info(f"No direct similar artists found. Falling back to genre: {genre}")
@@ -576,22 +590,17 @@ def get_similar_artists(artist_id: Optional[str] = None, artist_name: Optional[s
                     sorted_peers = sorted(peers.values(), key=lambda x: x['count'], reverse=True)[:limit]
                     
                     # Format as similar artists
-                    similar_artists = sorted_peers # They have id and name
+                    similar_artists = sorted_peers 
                     source_type = "genre_fallback"
-                else:
-                    source_type = "canonical" # Empty but checked
             except Exception as ex:
                  logger.error(f"Fallback failed: {ex}")
-                 source_type = "canonical"
-        else:
-             source_type = "canonical"
-        
+
         output = []
         for a in similar_artists:
             output.append({
                 "id": a.get('id'),
                 "name": a.get('name'),
-                "match": a.get('match') if 'match' in a else None, # match is from canonical
+                "match": a.get('match') if 'match' in a else None,
                 "source": source_type
             })
         
@@ -1023,14 +1032,14 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
         id_pattern = re.compile(r'^[a-fA-F0-9]{32}$')
 
         for sid_raw in song_ids:
-            # 0. Sanitization (Strip noise)
-            sid = sid_raw.strip(" '\"`")
-            
-            # 1. Strict Validation
-            if not id_pattern.match(sid):
-                # Log but skip silently/cleanly or just warn without breaking format
-                warnings.append(f"{sid} (Invalid ID Format)")
+            # 0. Sanitization (Extraction from noisy strings like Markdown links or trailing punctuation)
+            # Regex extracts the FIRST 32-char hex string found in the input
+            match = re.search(r'([0-9a-fA-F]{32})', sid_raw)
+            if not match:
+                warnings.append(f"{sid_raw} (Invalid ID Format)")
                 continue
+            
+            sid = match.group(1)
 
             # 2. Fetch with Retry (The "Ghost ID" Fix)
             # Try 1

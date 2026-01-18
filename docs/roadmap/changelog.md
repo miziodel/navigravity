@@ -24,7 +24,9 @@
 #### 🐛 Fixes & Improvements
 - **Strict Filtering**: `get_smart_candidates` now strictly excludes tracks with `bpm=0` when `min_bpm` is requested, returning an error if strict filtering matches 0 candidates (Fixing "Silent Mode" bug).
 - **Ghost ID Protection**: `assess_playlist_quality` now gracefully handles "Song not found" errors by skipping them and returning a `warnings` field.
+- **Improved ID Sanitization**: `assess_playlist_quality` now uses robust regex extraction to handle IDs embedded in Markdown links or with trailing noise.
 - **Search Reliability**: `search_music_enriched` automatically retries with a simplified query if strict search fails (Fixing "Fuzzy Search" issue).
+- **Tiered Similarity**: `get_similar_artists` now follows a tiered lookup (Direct Similarity -> Bio Info -> Genre Fallback) for significantly higher hit rates in diverse libraries.
 
 ---
 
