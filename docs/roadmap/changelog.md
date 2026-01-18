@@ -8,6 +8,9 @@
 - **Intelligent Selection**: `get_smart_candidates` now sorts results by `smart_score` (Descending) and shuffles the top tier to ensure both quality and discovery variety.
 
 #### 🏗️ Fixes & Improvements
+- **Smart Scoring Bug**: Fixed issue where low-rated tracks (1-2 stars) were not being penalized due to a metadata key mismatch (`userRating` vs `rating`).
+- **Playlist Persistence**: Fixed "Race Condition" where creating large playlists (>20 tracks) resulted in partial saves. Implemented automatic batching (10 tracks/request) in `manage_playlist`.
+- **Sync Ghost Bug**: Implemented mandatory ID verification in `manage_playlist` to prevent silent failures when updating playlists with stale or invalid track IDs.
 - **Version Control**: Bumped project version to `0.1.8`.
 
 

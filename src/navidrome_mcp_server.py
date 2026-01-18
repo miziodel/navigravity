@@ -171,7 +171,7 @@ def _calculate_smart_score(s: Dict) -> int:
         - Stars = 1 per star
         - Combined = Stars + Heart
     """
-    rating = s.get('userRating', 0)
+    rating = s.get('rating', 0)
     # Check explicitly for True because key is always present in formatted song
     is_starred = s.get('starred') is True
     
@@ -1070,6 +1070,8 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
     """
     conn = get_conn()
     try:
+        BATCH_SIZE = 10
+        
         # Find playlist by name
         playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
         pl_id = next((p['id'] for p in playlists if p['name'] == name), None)
@@ -1078,7 +1080,7 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
             if not pl_id: return "[]"
             entries = conn.getPlaylist(pl_id).get('playlist', {}).get('entry', [])
             random.shuffle(entries)
-            # Limit default return to 20 for safety
+            # Limit default return to 50 for safety
             return json.dumps([_format_song(s) for s in entries[:50]], indent=2)
 
         if operation == "delete":
@@ -1089,23 +1091,86 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
 
         if not track_ids:
             return "Error: track_ids required for create/append."
+        # --- ID VERIFICATION (Sync Ghost Fix) ---
+        valid_ids = []
+        dropped_ids = []
+        
+        # Verify each ID existence and 'freshness'
+        # This prevents "Success" responses when tracks are actually silently rejected by the API
+        for tid in track_ids:
+            try:
+                res = conn.getSong(tid)
+                if res.get('song'):
+                    valid_ids.append(tid)
+                else:
+                    dropped_ids.append(tid)
+            except Exception:
+                dropped_ids.append(tid)
 
+        if not valid_ids:
+            return f"Error: All {len(track_ids)} provided track IDs were invalid or stale. No changes made."
+            
+        if dropped_ids:
+            logger.warning(f"Dropped {len(dropped_ids)} stale/ghost IDs from playlist request: {dropped_ids}")
+            # Update the working list to only include valid IDs
+            track_ids = valid_ids
+        
+        # --- BATCHING LOGIC ---
+        chunks = [track_ids[i:i + BATCH_SIZE] for i in range(0, len(track_ids), BATCH_SIZE)]
+        
         if operation == "create":
             if pl_id:
                 # Subsonic API might allow duplicates, we enforce unique name by ID
                 conn.deletePlaylist(pl_id)
                 logger.info(f"Deleted existing playlist: {name} (ID: {pl_id})")
+                pl_id = None
             
-            conn.createPlaylist(name=name, songIds=track_ids)
-            return f"Created playlist '{name}' with {len(track_ids)} tracks."
+            if not chunks: return f"Created empty playlist '{name}'."
+
+            # Create with first chunk
+            conn.createPlaylist(name=name, songIds=chunks[0])
+            logger.info(f"Created base playlist '{name}' with {len(chunks[0])} tracks.")
+            
+            # If valid remaining chunks, we need to append
+            if len(chunks) > 1:
+                 # Wait a beat for server consistency
+                 time.sleep(0.5)
+                 
+                 # Re-fetch ID if we don't have it (we just created it, so we don't)
+                 playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
+                 pl_id = next((p['id'] for p in playlists if p['name'] == name), None)
+                 
+                 if not pl_id:
+                     return f"Warning: Created playlist '{name}' but could not verify existence for batch appending. Only first {len(chunks[0])} tracks saved."
+                 
+                 for i, chunk in enumerate(chunks[1:]):
+                     time.sleep(0.2) # Kindness delay
+                     conn.updatePlaylist(pl_id, songIdsToAdd=chunk)
+                     logger.info(f"Batch {i+2}/{len(chunks)} appended ({len(chunk)} tracks).")
+
+            return f"Created playlist '{name}' with {len(track_ids)} tracks ({len(chunks)} batches)."
 
         elif operation == "append":
+            start_index = 0
             if not pl_id:
-                 conn.createPlaylist(name=name, songIds=track_ids)
-                 return f"Created new playlist '{name}' with {len(track_ids)} tracks (append mode)."
+                 if not chunks: return "Nothing to append and playlist logic error."
+                 # Create with first chunk if missing
+                 conn.createPlaylist(name=name, songIds=chunks[0])
+                 start_index = 1
+                 time.sleep(0.5)
+                 # Fetch ID for subsequent
+                 if len(chunks) > 1:
+                     playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
+                     pl_id = next((p['id'] for p in playlists if p['name'] == name), None)
             
-            conn.updatePlaylist(pl_id, songIdsToAdd=track_ids)
-            return f"Appended {len(track_ids)} tracks to '{name}'."
+            # Append remaining or all chunks
+            if pl_id:
+                for i, chunk in enumerate(chunks[start_index:]):
+                    conn.updatePlaylist(pl_id, songIdsToAdd=chunk)
+                    time.sleep(0.2)
+                return f"Appended {len(track_ids)} tracks to '{name}' ({len(chunks)} batches)."
+            else:
+                 return f"Created new playlist '{name}' with initial batch, but failed to resolve ID for full append."
             
         return f"Unknown operation: {operation}"
 
