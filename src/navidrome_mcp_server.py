@@ -11,7 +11,7 @@ import json
 import random
 import datetime
 from collections import Counter
-from typing import Optional, List, Dict
+from typing import List, Dict, Optional, Any
 from dotenv import load_dotenv
 from pathlib import Path
 from urllib.parse import urlparse
@@ -19,6 +19,7 @@ import logging
 from pythonjsonlogger import jsonlogger
 import time
 import functools
+import re
 
 # --- CONFIGURATION ---
 # Load .env from the project root (one level up from src/)
@@ -221,10 +222,10 @@ def check_connection() -> str:
         if conn.ping():
             # Clean up the URL in case it has user info
             safe_url = conn.baseUrl.split('@')[-1] if '@' in conn.baseUrl else conn.baseUrl
-            return f"Connected to Navidrome at {safe_url}"
-        return "Failed to connect to Navidrome (ping failed)"
+            return json.dumps({"result": f"Connected to Navidrome at {safe_url}"}, ensure_ascii=False)
+        return json.dumps({"error": "Failed to connect to Navidrome (ping failed)"}, ensure_ascii=False)
     except Exception as e:
-        return f"Failed to connect to Navidrome: {str(e)}"
+        return json.dumps({"error": f"Failed to connect to Navidrome: {str(e)}"}, ensure_ascii=False)
 
 @mcp.prompt()
 def usage_guide() -> str:
@@ -233,22 +234,25 @@ def usage_guide() -> str:
     # Navigravity MCP Server Guide
     
     ## 1. Discovery
-    - Start by checking `navidrome://info` to see server capabilities.
+    - Start by checking `navidrome://info` (via `get_server_info`) to see server capabilities.
     - Use `check_connection` to verify the backend is up.
+    - `search_music_enriched(query)`: Search for artists, albums, or songs.
     
     ## 2. Exploration
     - `get_genres()`: See what's available.
-    - `explore_genre(genre)`: deep dive into a genre.
-    - `analyze_library(mode='taste_profile')`: Understand the user's taste.
+    - `explore_genre(genre)`: Deep dive into a genre.
+    - `analyze_library(mode='taste_profile'|'composition'|'pillars')`: Understand the user's taste and library stats.
+    - `get_similar_artists(artist_name)`: Find related artists (uses library data).
+    - `get_similar_songs(song_id)`: Find related songs (Radio Mode).
     
     ## 3. Curation (The Quality First Workflow)
     Follow the Curator Manifesto:
-    1. **Harvest**: Use `get_smart_candidates` to get raw tracks.
-    2. **Filter**: Use `assess_playlist_quality` (if available) or `batch_check_library_presence`.
+    1. **Harvest**: Use `get_smart_candidates` with modes like 'divergent', 'hidden_gems', 'recently_added'.
+    2. **Filter**: Use `assess_playlist_quality` (Crucial) and `batch_check_library_presence`.
     3. **Execute**: Use `manage_playlist` to create the final playlist.
     
     ## 4. Playback
-    - This server primarily manages library state. Playback control depends on your specific client integration.
+    - This server primarily manages library state.
     """
 
 # --- RESOURCES & PROMPTS: CURATOR ---
@@ -511,22 +515,90 @@ def get_genre_tracks(genre: str, limit: int = 100) -> str:
 
 @mcp.tool()
 @log_execution
-def get_similar_artists(artist_id: str, limit: int = 10) -> str:
-    """Gets similar artists based on Last.fm data (if available)."""
+def get_similar_artists(artist_id: Optional[str] = None, artist_name: Optional[str] = None, limit: int = 20) -> str:
+    """
+    Gets similar artists. Provide artist_id OR artist_name (name will be resolved to ID first).
+    Uses getArtistInfo2 as a reliable fallback for library similarity.
+    """
     conn = get_conn()
     try:
-        res = conn.getSimilarArtists(artist_id, count=limit)
-        artists = res.get('similarArtists', {}).get('artist', [])
+        target_id = artist_id
+        
+        # 1. Resolve Name if ID is missing
+        if not target_id and artist_name:
+            search_res = conn.search3(artist_name, artistCount=1)
+            artists = search_res.get('searchResult3', {}).get('artist', [])
+            if not artists:
+                return f"Error: Artist '{artist_name}' not found in library."
+            
+            # Use the first match (most relevant)
+            target_id = artists[0].get('id')
+            logger.info(f"Resolved artist '{artist_name}' to ID: {target_id}")
+
+        if not target_id:
+            return "Error: Either artist_id or artist_name must be provided."
+
+        # 2. Fetch using getArtistInfo2 (Fallback for missing getSimilarArtists in libsonic)
+        # ArtistInfo2 returns {'artistInfo2': {'similarArtist': [...]}}
+        res = conn.getArtistInfo2(target_id, count=limit)
+        info = res.get('artistInfo2', {})
+        similar_artists = info.get('similarArtist', [])
+        if not similar_artists:
+            # --- FALLBACK: Genre-Based Similarity ---
+            try:
+                # Need genre. If we resolved by Name, we might have it. If by ID, fetch it.
+                genre = None
+                if artist_name and 'artists' in locals(): # reuse search cache if avail
+                     # artists variable from name resolution block
+                     if artists: genre = artists[0].get('genre')
+                
+                if not genre:
+                     # Fetch artist details to get genre
+                     art_info = conn.getArtist(target_id)
+                     genre = art_info.get('artist', {}).get('genre')
+
+                if genre:
+                    logger.info(f"No direct similar artists found. Falling back to genre: {genre}")
+                    # Use _fetch_albums to find peers
+                    genre_albums = _fetch_albums("byGenre", genre=genre, size=100)
+                    
+                    # Extract unique artists from these albums
+                    peers = {}
+                    for alb in genre_albums:
+                        art = alb.get('artist')
+                        art_id = alb.get('artistId')
+                        if art_id != target_id and art:
+                             if art_id not in peers:
+                                 peers[art_id] = {'id': art_id, 'name': art, 'count': 0}
+                             peers[art_id]['count'] += 1
+                    
+                    # Sort by frequency (proxy for relevance)
+                    sorted_peers = sorted(peers.values(), key=lambda x: x['count'], reverse=True)[:limit]
+                    
+                    # Format as similar artists
+                    similar_artists = sorted_peers # They have id and name
+                    source_type = "genre_fallback"
+                else:
+                    source_type = "canonical" # Empty but checked
+            except Exception as ex:
+                 logger.error(f"Fallback failed: {ex}")
+                 source_type = "canonical"
+        else:
+             source_type = "canonical"
         
         output = []
-        for a in artists:
+        for a in similar_artists:
             output.append({
                 "id": a.get('id'),
                 "name": a.get('name'),
-                "match": a.get('match') # Similarity score (0-100 usually, or 0.0-1.0)
+                "match": a.get('match') if 'match' in a else None, # match is from canonical
+                "source": source_type
             })
-        return json.dumps(output, indent=2)
-    except Exception as e: return str(e)
+        
+        return json.dumps(output, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Error in get_similar_artists: {e}")
+        return str(e)
 
 
 @mcp.tool()
@@ -583,7 +655,9 @@ def explore_genre(genre: str, limit: int = 50) -> str:
             if art not in artist_stats:
                 artist_stats[art] = {"count": 0, "albums": []}
             artist_stats[art]["count"] += 1
-            artist_stats[art]["albums"].append(alb.get('title'))
+            # Fallback for album name: title is standard, but name/album are common in some versions/proxies
+            alb_name = alb.get('title') or alb.get('name') or alb.get('album') or "Unknown Album"
+            artist_stats[art]["albums"].append(alb_name)
             
         # Convert to list and sort by album count
         sorted_artists = sorted(
@@ -607,12 +681,12 @@ def explore_genre(genre: str, limit: int = 50) -> str:
 def get_smart_candidates(
     mode: str, 
     limit: int = 50,
-    include_genres: List[str] = None,
-    exclude_genres: List[str] = None,
-    min_bpm: int = None,
-    max_bpm: int = None,
-    mood: str = None,
-    max_tracks_per_artist: int = None
+    include_genres: Optional[List[str]] = None,
+    exclude_genres: Optional[List[str]] = None,
+    min_bpm: Optional[int] = None,
+    max_bpm: Optional[int] = None,
+    mood: Optional[str] = None,
+    max_tracks_per_artist: Optional[int] = None
 ) -> str:
     """
     Generates lists based on stats with advanced filtering.
@@ -944,16 +1018,41 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
     try:
         songs = []
         warnings = []
-        for sid in song_ids:
+        
+        # Validation Regex (32-char hex)
+        id_pattern = re.compile(r'^[a-fA-F0-9]{32}$')
+
+        for sid_raw in song_ids:
+            # 0. Sanitization (Strip noise)
+            sid = sid_raw.strip(" '\"`")
+            
+            # 1. Strict Validation
+            if not id_pattern.match(sid):
+                # Log but skip silently/cleanly or just warn without breaking format
+                warnings.append(f"{sid} (Invalid ID Format)")
+                continue
+
+            # 2. Fetch with Retry (The "Ghost ID" Fix)
+            # Try 1
+            s = None
             try:
-                # getSong returns {'song': {...}} or error/empty
                 res = conn.getSong(sid)
                 s = res.get('song')
-                if s: 
-                    songs.append(s)
-                else:
-                    warnings.append(sid)
             except Exception:
+                pass
+            
+            # Try 2 (Retry)
+            if not s:
+                time.sleep(0.1) # Brief pause for consistency
+                try:
+                    res = conn.getSong(sid)
+                    s = res.get('song')
+                except Exception:
+                    pass
+            
+            if s: 
+                songs.append(s)
+            else:
                 warnings.append(sid)
 
         if not songs: 

@@ -50,12 +50,16 @@ from navidrome_mcp_server import assess_playlist_quality, get_smart_candidates, 
 
 def test_assess_quality_valid_ids(mock_conn):
     """Test standard success case to ensure regression safety."""
+    # Use valid 32-char hex IDs
+    id1 = "1" * 32
+    id2 = "2" * 32
+    
     # Mocking getSong side effect for valid IDs
     def get_song_side_effect(id):
         return {'song': {'id': id, 'artist': 'Artist A', 'title': f'Song {id}'}}
     mock_conn.getSong.side_effect = get_song_side_effect
 
-    result = assess_playlist_quality(["1", "2"])
+    result = assess_playlist_quality([id1, id2])
     data = json.loads(result)
     
     assert data['total_tracks'] == 2
@@ -67,20 +71,25 @@ def test_assess_quality_partial_failure_ghost_ids(mock_conn):
     If a song ID is missing (returns None or empty), it should be skipped with a warning,
     not crash or return error string.
     """
+    id1 = "1" * 32
+    id2 = "2" * 32
+    ghost = "ghost" # Invalid format, will trigger warning
+
     def get_song_side_effect(id):
-        if id == "ghost": return {} # Simulates Navidrome "not found" or empty response
+        if id == ghost: return {} # Should not be reached if regex catches it first, but safe to keep
         return {'song': {'id': id, 'artist': 'Valid Artist', 'title': 'Valid Song'}}
     
     mock_conn.getSong.side_effect = get_song_side_effect
 
     # Call with 2 valid and 1 ghost
-    result = assess_playlist_quality(["1", "ghost", "2"])
+    result = assess_playlist_quality([id1, ghost, id2])
     data = json.loads(result)
 
     # Logic: Should calculate stats on the 2 valid songs
     assert data['total_tracks'] == 2 # Only valid ones count for stats
     assert 'warnings' in data
-    assert "ghost" in data['warnings']
+    # Check that one of the warnings contains "ghost"
+    assert any("ghost" in w for w in data['warnings'])
     assert data['diversity_score'] == 0.5 # 1 artist / 2 songs = 0.5
 
 def test_strict_params_bpm_loophole(mock_conn):

@@ -1,9 +1,35 @@
 # MCP Client Feedback: Navigravity Integration
 
-**Scope:** Observations from a "Travel Playlist" creation session involving complex filtering and bulk operations.  
-**Perspective:** LLM Agent Client acting as a playlist curator.
+**Scope:** Observations from various curation sessions (Travel, Curator Mode).
+**Perspective:** LLM Agent acting as a musical curator.
 
-## 1. Excessive Client-Side Processing (Filtering)
+## 1. Resolved Enhancements (v0.1.7+)
+- **ID Sanitization**: (RESOLVED) Input cleanup implemented in `assess_playlist_quality`.
+- **Similarity Fallback**: (RESOLVED) Genre-based fallback in `get_similar_artists`.
+
+## 2. Technical Feedback - Session 2026-01-18 (The Curator Session)
+
+### Discovery & Search
+- **`search_music_enriched` (Strictness)**:
+    - *Problem*: Searching for a performer (e.g. Keith Jarrett) returns many composers (Bach/Mozart).
+    - *Requested Feature*: Add `role=composer|performer` or `strict_artist_match: boolean` to filter results.
+
+### Similarity & Radio
+- **`get_similar_artists` (Library Focus)**:
+    - *Requested Feature*: Add `in_library_only: boolean` flag.
+- **`get_similar_songs` (Seed Sets)**:
+    - *Requested Feature*: Accept an array of `song_ids` for average-profile radio generation.
+
+### Analysis & Quality
+- **`assess_playlist_quality` (Ensemble Similarity)**:
+    - *Observation*: Related formations (e.g. Jarrett Trio) are seen as distinct artists.
+    - *Requested Feature*: Implement "Ensemble Similarity" logic.
+- **Library Exploration (Favorite Albums)**:
+    - *Requested Feature*: Consider an album "Favorite" if it is starred OR contains a starred track. (Drafted in `smart_favorite_metrics.md`).
+
+## 3. Meta-Observation: Model Dynamics
+- **Gemini 3 Pro (M7)**: High reasoning, prone to verbosity in tool calls (causing formatting loops).
+- **Gemini 3 Flash (M18)**: Efficient, precise adherence to tool schemas.
 
 The most significant inefficiency was the inability to filter by user metadata server-side.
 

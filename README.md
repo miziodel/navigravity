@@ -15,6 +15,13 @@ Unlike simple search tools, NG implements a specific curation philosophy focused
 2.  **Virtual Tags (Non-Invasive)**: We treat your audio files as sacred read-only artifacts. Moods and custom tags are stored as "System Playlists" (e.g., `System:Mood:Focus`), keeping your file metadata clean.
 3.  **Smart Discovery**: Features "Magic List" algorithms to surface Forgotten Gems, Hidden Tracks, and divergent genres to break your filter bubble.
 
+## 🤖 For Agents & Curators
+
+We provide a specialized guide for the Large Language Models interacting with this toolset. It defines the "Curator Persona", "Bliss Quality Gate" protocols, and strategic patterns (e.g., *The Time Machine* or *Semantic Exploration*).
+
+👉 **[Read the LLM Tool Usage Manifesto](docs/overview/llm_tool_usage.md)**
+
+
 ## Setup & Installation
 
 **Prerequisites:**
@@ -72,11 +79,20 @@ Add the following to your client's configuration (e.g., `claude_desktop_config.j
 }
 ```
 
-## 🤖 For Agents & Curators
+### 🛠 Troubleshooting & Local Debugging
 
-We provide a specialized guide for the Large Language Models interacting with this toolset. It defines the "Curator Persona", "Bliss Quality Gate" protocols, and strategic patterns (e.g., *The Time Machine* or *Semantic Exploration*).
+If you encounter `ModuleNotFoundError` or errors spawning the process, ensure you are pointing to the Python executable **inside** your virtual environment.
 
-👉 **[Read the LLM Tool Usage Manifesto](docs/overview/llm_tool_usage.md)**
+To test the server manually and explore tools with a UI, use the **MCP Inspector**:
+
+```bash
+# From the project root
+npx @modelcontextprotocol/inspector .venv/bin/python src/navidrome_mcp_server.py
+```
+This will open a browser interface at `http://localhost:6274` allowing you to interact with all tools.
+
+
+
 
 ## 🧰 Available Tools
 
@@ -92,6 +108,8 @@ The agent has access to the following tools:
 -   **Discovery & Recommendation**:
     -   `get_smart_candidates(mode)`: Statistical discovery engine.
         -   Modes: `rediscover`, `hidden_gems`, `unheard_favorites`, `lowest_rated`, `divergent` (breaks filter bubble).
+    -   `get_similar_artists`: Finds relational bridges. Automatically falls back to "Genre Peers" if canonical data is missing.
+    -   `get_similar_songs`: "Radio Mode" for finding sonically resonant tracks.
     -   `get_genres` / `explore_genre`: Deep dive into specific genres.
     -   `get_genre_tracks`: Fetches random tracks from a genre.
     -   `search_music_enriched`: Metadata-rich search.
@@ -100,7 +118,8 @@ The agent has access to the following tools:
     -   `manage_playlist(name, operation, track_ids)`:
         -   Create/Replace customized playlists.
         -   **Mood Convention**: Use `NG:Mood:{MoodName}` (e.g., `NG:Mood:Focus`) to create virtual mood tags.
-    -   `assess_playlist_quality`: The "Bliss" check logic (diversity/repetition).
+    -   `assess_playlist_quality`: The "Bliss" check logic. Includes automatic **ID Sanitization** (stripping quotes/backticks).
+
 
 ---
 
