@@ -13,6 +13,8 @@
 - **Sync Ghost Bug**: Implemented mandatory ID verification in `manage_playlist` to prevent silent failures when updating playlists with stale or invalid track IDs.
 - **Version Control**: Bumped project version to `0.1.8`.
 
+#### 📝 Documentation
+- **Curation Blueprints**: Introduced the "Blueprint" category for complex curation strategies. Added the first draft: [The Universal Bridge (A ➔ B)](../architecture/blueprints/universal_bridge_draft.md).
 
 ### Infrastructure & Governance Upgrades (2026-01-18)
 

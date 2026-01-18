@@ -32,7 +32,12 @@ For listener satisfaction, agentic playlists should enforce:
 **Exceptions**:
 These constraints can be relaxed *only* if the user explicitly requests a narrow scope (e.g. "Best of Miles Davis", "1999 Hip Hop") AND there is insufficient content to fill the playlist otherwise. In such cases, prioritize fulfilling the user's specific constraint over general diversity rules.
 
-## 4. Technical Implementation Notes
+## 4. Draft Blueprints
+Detailed curation strategies currently under development.
+
+- **[The Universal Bridge (A ➔ B)](../architecture/blueprints/universal_bridge_draft.md)**: A 30-40 track sequence connecting distant musical worlds via resonance nodes.
+
+## 5. Technical Implementation Notes
 - **Libsonic URL Parsing**: `libsonic` connection requires strictly parsed URLs (scheme/host separate from port).
 - **Subsonic API**: `getAlbumList2` uses `ltype` (list type) argument, not `type`.
 - **Genre Mining**: `getRandomSongs(genre=...)` is the most efficient way to get candidates for a mood without downloading the entire database.

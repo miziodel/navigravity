@@ -41,6 +41,10 @@
     {
       "path": "docs/roadmap/changelog.md",
       "description": "Version History"
+    },
+    {
+      "path": "docs/architecture/blueprints/universal_bridge_draft.md",
+      "description": "Universal Bridge Blueprint (Draft)"
     }
   ]
 }

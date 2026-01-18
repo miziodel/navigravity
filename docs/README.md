@@ -14,6 +14,7 @@ Technical specifications and schemas.
 
 - [**MCP Architecture**](architecture/mcp_architecture.md): System diagram, data flow, and transport details.
 - [**API Schema**](architecture/api_schema.md): Definition of all MCP Tools and Resources available.
+- [**Curation Blueprints**](architecture/blueprints/): Detailed curation recipes (Drafts).
 
 ## 🛣️ Roadmap & History
 Planning and tracking.
