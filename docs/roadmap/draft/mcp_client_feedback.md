@@ -3,11 +3,7 @@
 **Scope:** Observations from various curation sessions (Travel, Curator Mode).
 **Perspective:** LLM Agent acting as a musical curator.
 
-## 1. Resolved Enhancements (v0.1.7+)
-- **ID Sanitization**: (RESOLVED) Input cleanup implemented in `assess_playlist_quality`.
-- **Similarity Fallback**: (RESOLVED) Genre-based fallback in `get_similar_artists`.
-
-## 2. Technical Feedback - Session 2026-01-18 (The Curator Session)
+## 1. Technical Feedback - Session 2026-01-18 (The Curator Session)
 
 ### Discovery & Search
 - **`search_music_enriched` (Strictness)**:
