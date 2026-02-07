@@ -1,5 +1,21 @@
 # NaviGravity Changelog
 
+### v0.1.9 - Agentic UX Refinement (2026-02-07)
+
+#### ✨ New Features
+- **Playlist Inventory**: Added `list_playlists` tool to allow agents to map existing playlists and their IDs, solving the "Blind Agent" problem.
+- **Relaxed Search Matching**: `search_music_enriched` now automatically splits queries by " - " or " by " and retries if no initial results are found, significantly improving hit rates for artist/song queries.
+- **Similarity Seeding**: `get_smart_candidates` now supports `reference_track_ids` to seed recommendations using specifically chosen tracks (Expansion logic).
+
+#### 🏗️ Fixes & Improvements
+- **Intelligent Feedback**: `manage_playlist` now returns structured JSON responses with granular counts (added, dropped, batches) and success status.
+- **Fuzzy Suggestions**: `manage_playlist` now provides "Did you mean?" suggestions using fuzzy matching when a requested playlist is not found.
+- **Infrastructure**: Fixed `python-json-logger` deprecation warnings and bumped version to `0.1.9`.
+- **Environment**: Enforced `.venv` usage and TDD-first protocol for all new modules.
+
+#### 📝 Documentation
+- **Manifesto Update**: Updated `Agentic Curator Manifesto` to reflect new semantic exploration patterns using seeds and inventory tools.
+
 ### v0.1.8 - Smart Selection (2026-01-18)
 
 #### ✨ New Features

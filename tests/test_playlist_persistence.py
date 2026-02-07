@@ -67,7 +67,8 @@ def test_playlist_batching_append_large(mock_get_conn):
     
     result = manage_playlist(name="ExistingList", operation="append", track_ids=track_ids)
     
-    assert "Appended 25 tracks" in result
+    assert "Appended tracks" in result
+    assert '"added_count": 25' in result
     
     # createPlaylist should NOT be called
     mock_conn.createPlaylist.assert_not_called()

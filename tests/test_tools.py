@@ -407,4 +407,95 @@ def test_output_robustness(mock_conn):
     # Verify no unicode escapes for simple ascii (ensure_ascii=False preferred but not strictly enforced if readable)
     # But we want to ensure it DOESN'T fail on emojis if we had them.
 
+    # --- Group 4: V0.1.9 Improvements (TDD) ---
 
+def test_list_playlists_returns_data(mock_conn):
+    """Test the NEW list_playlists tool."""
+    import navidrome_mcp_server
+    mock_conn.getPlaylists.return_value = {
+        'playlists': {
+            'playlist': [
+                {'id': 'pl1', 'name': 'Rock Mix'},
+                {'id': 'pl2', 'name': 'Jazz Vibes'}
+            ]
+        }
+    }
+    
+    # Tool might not exist yet (TDD)
+    if not hasattr(navidrome_mcp_server, 'list_playlists'):
+        pytest.fail("list_playlists tool not implemented")
+        
+    list_playlists = getattr(navidrome_mcp_server, 'list_playlists')
+    result = list_playlists()
+    data = json.loads(result)
+    
+    assert len(data) == 2
+    assert data[0]['name'] == 'Rock Mix'
+    assert data[1]['id'] == 'pl2'
+
+def test_search_splitting_artist_song(mock_conn):
+    """Test that search splits 'Artist - Song' if initial search fails."""
+    def search_side_effect(query, **kwargs):
+        if query == "Aphex Twin - Alberto Balsalm":
+            return {'searchResult3': {}}
+        if query == "Aphex Twin Alberto Balsalm": # Relaxed version
+            return {'searchResult3': {'song': [{'id': 's1', 'title': 'Alberto Balsalm', 'artist': 'Aphex Twin'}]}}
+        return {'searchResult3': {}}
+
+    mock_conn.search3.side_effect = search_side_effect
+    
+    result = search_music_enriched("Aphex Twin - Alberto Balsalm")
+    data = json.loads(result)
+    
+    assert len(data) > 0
+    assert data[0]['title'] == 'Alberto Balsalm'
+
+def test_smart_candidates_seed_integration(mock_conn):
+    """Test get_smart_candidates with reference_track_ids seeds."""
+    seed_id = "seed123"
+    mock_conn.getSimilarSongs2.return_value = {
+        'similarSongs2': {
+            'song': [{'id': 'sim1', 'title': 'Similar Track', 'artist': 'Artist B'}]
+        }
+    }
+    mock_conn.getAlbumList2.return_value = {'albumList2': {'album': []}}
+
+    # Execute with seed
+    result = get_smart_candidates(mode="recently_added", reference_track_ids=[seed_id], limit=5)
+    data = json.loads(result)
+    
+    mock_conn.getSimilarSongs2.assert_called_with(seed_id, count=10)
+    assert any(s['id'] == 'sim1' for s in data)
+
+def test_manage_playlist_did_you_mean(mock_conn):
+    """Test that manage_playlist suggests the right name if a typo is made."""
+    mock_conn.getPlaylists.return_value = {
+        'playlists': {
+            'playlist': [
+                {'id': 'pl1', 'name': 'NG:Mood:Whitemary_Instrumental'}
+            ]
+        }
+    }
+    
+    result = manage_playlist(name="NG:Mood:Whitemari_Instrumentl", operation="get")
+    assert "Did you mean" in result
+    assert "Whitemary_Instrumental" in result
+
+def test_manage_playlist_batch_feedback(mock_conn):
+    """Test detailed feedback in manage_playlist append/create."""
+    pl_id = "pl123"
+    mock_conn.getPlaylists.return_value = {
+        'playlists': {
+            'playlist': [{'id': pl_id, 'name': 'MyList'}]
+        }
+    }
+    mock_conn.getSong.side_effect = [
+        {'song': {'id': 's1', 'title': 'T1'}}, # valid
+        None # invalid
+    ]
+    
+    result = manage_playlist(name="MyList", operation="append", track_ids=["s1", "ghost_id"])
+    assert "added" in result.lower() or "count" in result.lower()
+    assert "1" in result 
+    assert "dropped_count" in result.lower()
+    assert '"dropped_count": 1' in result

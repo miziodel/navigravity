@@ -41,11 +41,15 @@ Detailed guidance on specific tools.
     - Use `pillars` to find the "Canonical" backbone artists.
     - Use `taste_profile` for "Warm" habit analysis ("What do I actally like?").
 
+- **`list_playlists`**: The "Inventory" tool.
+    - Use this to map existing playlists and their IDs before attempting to `get` or `append`. It solves the "Blind Agent" problem.
+
 ### Discovery
 - **`get_smart_candidates`**: The statistical engine.
     - `lowest_rated`: Performs a Deep Scan for cleanup candidates.
     - `most_played`: Returns a robust top set.
     - `divergent`: Breaks the filter bubble.
+    - **`reference_track_ids`**: Pass an array of IDs to seed the discovery. Use this to expand a specific playlist vibe by finding tracks similar to its current content.
 
 ## 🛠️ Strategic Tool Usage
 
@@ -66,9 +70,10 @@ Detailed guidance on specific tools.
 ### 🏷️ The "Mood Architect" Pattern
 **Use Case**: "Music for coding" or "Late night vibes".
 **Strategy**:
-1.  Check existing stash: `manage_playlist(name='NG:Mood:focus', operation='get')`.
-2.  Expand: Search for new tracks that match the vibe.
-3.  **Tag as you go**: If you find perfect new tracks, call `manage_playlist(name='NG:Mood:focus', operation='append', track_ids=[...])` so they are saved for next time. *Build the library's intelligence over time.*
+1.  **Map**: Call `list_playlists()` to find if a relevant playlist already exists.
+2.  **Check**: If it exists, get its content: `manage_playlist(name='NG:Mood:focus', operation='get')`.
+3.  **Expand**: Use `get_smart_candidates(..., reference_track_ids=[...])` using IDs from step 2 as seeds.
+4.  **Tag as you go**: If you find perfect new tracks, call `manage_playlist(name='NG:Mood:focus', operation='append', track_ids=[...])`.
 
 ### 🗺️ The "Semantic Exploration" Pattern
 **Use Case**: "Create a playlist of modern ambient electronic music".

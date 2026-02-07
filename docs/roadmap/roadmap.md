@@ -4,6 +4,7 @@
 
 - **Remote Access (SSE)**: Implement Server-Sent Events (SSE) transport to allow remote clients to connect to NaviGravity (currently local stdio only).
 - **Gap Analysis**: Automate the "Dual Identity" check to periodically suggest missing artists.
+- **Test Consolidation**: Reorganize fragmented test modules (currently ~10 files) into an organic, domain-driven structure to improve maintainability.
 
 ## 🔍 Features Pending Validation
 
@@ -30,8 +31,7 @@ These features have been identified in draft documents and require planning/impl
 - **Smart Favorite Albums**: Metric for albums that are starred OR contain starred tracks
 - **Semantic Exploration**: Enhanced taste profile with cultural context
 
-### Validation Feedback (v0.1.8)
-- **Search & Sensitivity**: Implement fuzzy or case-insensitive search (fix `eliminare!!` discovery issues).
+### 📋 Pending UX Improvements
 - **Mood Strictness**: Add toggle to enforce strict BPM limits (e.g., for 'relax' mood).
 - **UX Clarity**: 
   - Fix `lowest_rated` returning empty lists when results exist locally.
@@ -39,9 +39,17 @@ These features have been identified in draft documents and require planning/impl
 
 **References**: See `docs/roadmap/draft/` for detailed specifications
 
-## 🚀 Active Release: v0.1.8 (Smart Scoring)
-**Status**: Released (2026-01-18)
+## 🚀 Active Release: v0.1.9 (Agentic UX Refinement)
+**Status**: Released (2026-02-07)
 **Changes**: [changelog.md](changelog.md)
+
+### Delivered in v0.1.9
+- **Agentic UX Refinement**: 
+  - `list_playlists` tool for better discoverability.
+  - Relaxed search matching (splitting query by " - " or " by ").
+  - Seed-based discovery in `get_smart_candidates` using `reference_track_ids`.
+  - Structured JSON feedback and fuzzy suggestions ("Did you mean?") in `manage_playlist`.
+  - Fixed `python-json-logger` deprecation warnings.
 
 ### Delivered in v0.1.8
 - **Smart Scoring**: Point-based scoring system (Neutral: 3, Stars: +1 per star, Heart: +5)

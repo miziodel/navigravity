@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Maurizio Delmonte
 # SPDX-License-Identifier: MIT
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 from mcp.server.fastmcp import FastMCP
 import libsonic
@@ -16,10 +16,11 @@ from dotenv import load_dotenv
 from pathlib import Path
 from urllib.parse import urlparse
 import logging
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import json as pyjsonlogger
 import time
 import functools
 import re
+import difflib
 
 # --- CONFIGURATION ---
 # Load .env from the project root (one level up from src/)
@@ -41,7 +42,7 @@ logger.setLevel(logging.INFO)
 # File Handler (JSON) - Writable by user running the script
 
 # Formatter
-formatter = jsonlogger.JsonFormatter(
+formatter = pyjsonlogger.JsonFormatter(
     "%(asctime)s %(levelname)s %(name)s %(message)s",
     rename_fields={"levelname": "level", "asctime": "timestamp"},
     datefmt="%Y-%m-%dT%H:%M:%SZ"
@@ -225,8 +226,17 @@ def _fetch_search_results(query: str, song_count: int = 20, album_count: int = 0
             elif key not in data:
                 data[key] = []
         
-        # Fuzzy Fallback: if empty and contains special chars
+        # TDD Check: If empty, try "Relaxed Matching"
         if not data.get('song') and not data.get('album') and not data.get('artist'):
+            # 1. Split on " - " or " by " (common patterns)
+            patterns = [" - ", " by "]
+            for p in patterns:
+                if p in query:
+                    relaxed = query.replace(p, " ").strip()
+                    logger.info(f"Search empty. Relaxing query: '{query}' -> '{relaxed}'")
+                    return _fetch_search_results(relaxed, song_count, album_count, artist_count)
+
+            # 2. Fuzzy Fallback: if empty and contains special chars
             if "&" in query or " & " in query:
                 fuzzy_query = query.replace("&", "").replace("  ", " ").strip()
                 logger.info(f"Search empty. Retrying with fuzzy query: {fuzzy_query}")
@@ -289,7 +299,8 @@ def usage_guide() -> str:
     ## 1. Discovery
     - Start by checking `navidrome://info` (via `get_server_info`) to see server capabilities.
     - Use `check_connection` to verify the backend is up.
-    - `search_music_enriched(query)`: Search for artists, albums, or songs.
+    - `list_playlists()`: MUST call this to map existing playlists before any management.
+    - `search_music_enriched(query)`: Robust search with split matching and noise removal.
     
     ## 2. Exploration
     - `get_genres()`: See what's available.
@@ -301,8 +312,9 @@ def usage_guide() -> str:
     ## 3. Curation (The Quality First Workflow)
     Follow the Curator Manifesto:
     1. **Harvest**: Use `get_smart_candidates` with modes like 'divergent', 'hidden_gems', 'recently_added'.
+       - **Pro Tip**: Use `reference_track_ids` to expand a vibe from specific seed tracks.
     2. **Filter**: Use `assess_playlist_quality` (Crucial) and `batch_check_library_presence`.
-    3. **Execute**: Use `manage_playlist` to create the final playlist.
+    3. **Execute**: Use `manage_playlist` to create the final playlist. Robust matching ensures you hit the right target.
     
     ## 4. Playback
     - This server primarily manages library state.
@@ -860,7 +872,8 @@ def get_smart_candidates(
     min_bpm: Optional[int] = None,
     max_bpm: Optional[int] = None,
     mood: Optional[str] = None,
-    max_tracks_per_artist: Optional[int] = None
+    max_tracks_per_artist: Optional[int] = None,
+    reference_track_ids: Optional[List[str]] = None
 ) -> str:
     """
     Generates lists based on stats with advanced filtering.
@@ -876,6 +889,7 @@ def get_smart_candidates(
         max_bpm: Maximum BPM
         mood: 'relax', 'energy', 'focus', etc.
         max_tracks_per_artist: Diversity constraint
+        reference_track_ids: List of source track IDs to use as seeds (Similarity expansion)
     """
     conn = get_conn()
     try:
@@ -896,6 +910,15 @@ def get_smart_candidates(
         modes = [m.strip() for m in mode.split(",")]
         candidates = []
         today = datetime.datetime.now()
+
+        # Seed candidates from references if provided
+        if reference_track_ids:
+            for seed_id in reference_track_ids:
+                try:
+                    sim = conn.getSimilarSongs2(seed_id, count=10)
+                    candidates.extend([_format_song(s) for s in sim.get('similarSongs2', {}).get('song', [])])
+                except Exception as e:
+                    logger.warning(f"Failed to fetch similar songs for seed {seed_id}: {e}")
 
         for current_mode in modes:
             pool = []
@@ -1052,6 +1075,27 @@ def get_smart_candidates(
         logger.error(f"get_smart_candidates failed: {e}", exc_info=True)
         return str(e)
 
+@mcp.tool()
+@log_execution
+def list_playlists() -> str:
+    """Lists all available playlists with IDs for discoverability."""
+    conn = get_conn()
+    try:
+        res = conn.getPlaylists()
+        playlists = res.get('playlists', {}).get('playlist', [])
+        
+        output = []
+        for pl in playlists:
+            output.append({
+                "id": pl.get('id'),
+                "name": pl.get('name'),
+                "owner": pl.get('owner'),
+                "song_count": pl.get('songCount'),
+                "duration_sec": pl.get('duration')
+            })
+        return json.dumps(output, indent=2)
+    except Exception as e:
+        return str(e)
 
 
 @mcp.tool()
@@ -1074,7 +1118,32 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
         
         # Find playlist by name
         playlists = conn.getPlaylists().get('playlists', {}).get('playlist', [])
+        
+        # 1. Exact Match
         pl_id = next((p['id'] for p in playlists if p['name'] == name), None)
+        
+        # 2. Case-Insensitive Match Fallback
+        if not pl_id:
+            pl_id = next((p['id'] for p in playlists if p['name'].lower() == name.lower()), None)
+            if pl_id:
+                # Resolve the "real" name if we hit it case-insensitively
+                name = next(p['name'] for p in playlists if p['id'] == pl_id)
+
+        # 3. Suggestion Fallback (TDD: Did you mean?)
+        if not pl_id and operation in ["get", "append", "delete"]:
+            # Better fuzzy matching with difflib
+            all_names = [p['name'] for p in playlists]
+            close_matches = difflib.get_close_matches(name, all_names, n=3, cutoff=0.5)
+            
+            if close_matches:
+                return f"Error: Playlist '{name}' not found. Did you mean: {', '.join(close_matches)}?"
+            
+            # Last ditch: substring match
+            suggestions = [n for n in all_names if name.lower() in n.lower()]
+            if suggestions:
+                return f"Error: Playlist '{name}' not found. Did you mean: {', '.join(suggestions)}?"
+            
+            return f"Error: Playlist '{name}' not found and no close matches found."
         
         if operation == "get":
             if not pl_id: return "[]"
@@ -1148,7 +1217,13 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
                      conn.updatePlaylist(pl_id, songIdsToAdd=chunk)
                      logger.info(f"Batch {i+2}/{len(chunks)} appended ({len(chunk)} tracks).")
 
-            return f"Created playlist '{name}' with {len(track_ids)} tracks ({len(chunks)} batches)."
+            return json.dumps({
+                "status": "success",
+                "message": f"Created playlist '{name}'",
+                "total_tracks": len(track_ids),
+                "batches": len(chunks),
+                "dropped_count": len(dropped_ids)
+            }, indent=2)
 
         elif operation == "append":
             start_index = 0
@@ -1168,7 +1243,14 @@ def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = No
                 for i, chunk in enumerate(chunks[start_index:]):
                     conn.updatePlaylist(pl_id, songIdsToAdd=chunk)
                     time.sleep(0.2)
-                return f"Appended {len(track_ids)} tracks to '{name}' ({len(chunks)} batches)."
+                
+                return json.dumps({
+                    "status": "success",
+                    "message": f"Appended tracks to '{name}'",
+                    "added_count": len(track_ids),
+                    "batches": len(chunks),
+                    "dropped_count": len(dropped_ids)
+                }, indent=2)
             else:
                  return f"Created new playlist '{name}' with initial batch, but failed to resolve ID for full append."
             
