@@ -30,6 +30,9 @@ These features have been identified in draft documents and require planning/impl
 ### Library Analysis
 - **Smart Favorite Albums**: Metric for albums that are starred OR contain starred tracks
 - **Semantic Exploration**: Enhanced taste profile with cultural context
+- **Curation Methodologies (Drafts)**:
+    - [The Morphing Gradient (Il Gradiente Metamorfico) - v2.0](draft/morphing_gradient.md)
+    - [The Unheard Giants (Cross-Genre Pillars)](draft/unheard_giants.md)
 
 ### 📋 Pending UX Improvements
 - **Mood Strictness**: Add toggle to enforce strict BPM limits (e.g., for 'relax' mood).

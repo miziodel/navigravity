@@ -15,6 +15,9 @@
 
 #### 📝 Documentation
 - **Manifesto Update**: Updated `Agentic Curator Manifesto` to reflect new semantic exploration patterns using seeds and inventory tools.
+- **Curation Recipes**: Added detailed drafts for advanced curation methodologies:
+    - [The Morphing Gradient (Il Gradiente Metamorfico) - v2.0](draft/morphing_gradient.md): 5-phase sonic metamorphosis.
+    - [The Unheard Giants (Cross-Genre Pillars)](draft/unheard_giants.md): Discovery logic for legendary tracks with 0 plays.
 
 ### v0.1.8 - Smart Selection (2026-01-18)
 
