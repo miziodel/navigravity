@@ -3,8 +3,10 @@
   "title": "NaviGravity Projects & Architecture",
   "summary": "Full Living Documentation for the NaviGravity MCP Agent, including Curation Patterns, API Schemas, Implementation Manifests, Roadmap, and Changelogs.",
   "created_at": "2026-01-10T18:00:00+01:00",
-  "updated_at": "2026-02-07T13:40:00+01:00",
-  "references": ["https://github.com/navigravity/navigravity"],
+  "updated_at": "2026-04-20T17:50:14.502503+00:00",
+  "references": [
+    "https://github.com/navigravity/navigravity"
+  ],
   "artifacts": [
     {
       "path": "docs/README.md",
@@ -54,5 +56,9 @@
       "path": "docs/roadmap/draft/unheard_giants.md",
       "description": "Unheard Giants Discovery Recipe (Draft)"
     }
+  ],
+  "related": [
+    "navigravity_curation_patterns",
+    "navigravity_debugging"
   ]
 }
