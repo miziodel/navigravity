@@ -1,5 +1,28 @@
 # NaviGravity Changelog
 
+### v0.2.0 - Smart Search (Unreleased)
+
+#### 🐛 Fix: `search_music_enriched` — Multi-Strategy Fallback
+
+**Root cause**: `search_music_enriched` delegava tutto a una singola chiamata `search3(query)`. Navidrome fa full-text OR: query composte (`"Artist AlbumName"`) diluiscono il relevance score → zero results o risultati sbagliati.
+
+#### ✨ New Features
+- **Multi-strategy cascading search**: la ricerca ora segue una cascata di 5 strategie prima di rinunciare:
+  1. `search3(query, songCount=limit*3, albumCount=2)` — se solo albums trovati, li espande in tracce.
+  2. Fallback su ricerca per `artist` con post-filter per `album`.
+  3. Fallback su ricerca per `album` con espansione diretta in tracce.
+  4. Unicode normalization fallback (NFKD) per titoli con caratteri speciali.
+  5. Raw fallback — non restituisce mai `[]` se tracce esistono.
+- **Nuovi parametri opzionali** `artist` e `album` per post-filtering esplicito (backward compatible).
+- **Album expansion**: quando `search3` trova solo album ma non tracce, recupera le tracce via `getMusicDirectory` (cap: 2 album per evitare latenza > 1s).
+- **Post-filter semanticamente corretto**: il parametro `album` filtra su `song['album']`, NON su `song['title']` — fix del caso `"Artist AlbumName"`.
+
+#### 📝 Documentation
+- `docs/architecture/api_schema.md`: aggiornato con nuovi parametri e comportamento cascata.
+- `docs/roadmap/roadmap.md`: Search Refinements parzialmente delivered.
+
+---
+
 ### v0.1.9 - Agentic UX Refinement (2026-02-07)
 
 #### ✨ New Features

@@ -44,11 +44,24 @@ This schema defines the tools available to the Antigravity Agent.
 
 ### `search_music_enriched`
 
-**Purpose**: Keyword search with full metadata.
+**Purpose**: Robust search with multi-strategy fallback. Resolves compound queries
+(e.g., `"Daft Punk Discovery"`, `"Miles Davis Bitches Brew"`) that confuse Navidrome's
+full-text OR search.
 
 **Arguments**:
-- `query` (string).
+- `query` (string): Free-text query. Can be a track title, artist name, album name, or any combination.
 - `limit` (int, default=20).
+- `artist` (string, optional): If provided, results are post-filtered so `song['artist']` contains this value (case-insensitive).
+- `album` (string, optional): If provided, results are post-filtered so `song['album']` contains this value (case-insensitive). **Note**: filtered on the album field, NOT the track title.
+
+**Search Strategy (cascading)**:
+1. `search3(query, songCount=limit*3, albumCount=2)` — if songs found, post-filter and return. If only albums found, expand albums into tracks (max 2 expansions).
+2. If `artist` provided: `search3(artist)` → post-filter by `album`.
+3. If `album` provided: `search3(album, albumCount=5)` → expand albums → return tracks.
+4. Unicode normalization fallback: retry step 1 with NFKD-normalized query.
+5. Raw fallback: return results as-is (never returns empty if tracks exist).
+
+**Returns**: JSON array of enriched track objects.
 
 ### `get_genres` / `explore_genre` / `get_genre_tracks`
 

@@ -113,7 +113,7 @@ The agent has access to the following tools:
     -   `get_similar_songs`: "Radio Mode" for finding sonically resonant tracks.
     -   `get_genres` / `explore_genre`: Deep dive into specific genres.
     -   `get_genre_tracks`: Fetches random tracks from a genre.
-    -   `search_music_enriched`: Metadata-rich search.
+    -   `search_music_enriched(query, artist?, album?)`: Robust metadata-rich search with **multi-strategy fallback**. Resolves compound queries (e.g., `"Daft Punk Discovery"`, `"Miles Davis Bitches Brew"`) via album expansion, unicode normalization, and client-side post-filtering. Optional `artist` and `album` parameters for precise filtering.
 
 -   **Curation & Management**:
     -   `manage_playlist(name, operation, track_ids)`:

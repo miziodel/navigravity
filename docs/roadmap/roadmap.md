@@ -16,6 +16,7 @@ These features have been identified in draft documents and require planning/impl
   - `batch_search`: Accept array of queries to reduce N+1 calls
   - Complete `batch_check_presence` implementation (partially done)
 - **Search Refinements**:
+  - ✅ **v0.2.0**: Multi-strategy fallback in `search_music_enriched` (album expansion, `artist`/`album` params, unicode normalization).
   - `role` filter (composer vs performer) in `search_music_enriched`
   - `in_library_only` flag for `get_similar_artists`
 - **Similarity Enhancements**:

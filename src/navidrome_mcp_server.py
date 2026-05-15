@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Maurizio Delmonte
 # SPDX-License-Identifier: MIT
 
-__version__ = "0.1.9"
+__version__ = "0.2.0"
 
 from mcp.server.fastmcp import FastMCP
 import libsonic
@@ -21,6 +21,7 @@ import time
 import functools
 import re
 import difflib
+import unicodedata
 
 # --- CONFIGURATION ---
 # Load .env from the project root (one level up from src/)
@@ -246,6 +247,55 @@ def _fetch_search_results(query: str, song_count: int = 20, album_count: int = 0
     except Exception as e:
         logger.error(f"Search failed for '{query}': {e}")
         return {"song": [], "album": [], "artist": []}
+
+
+def _normalize_query(text: str) -> str:
+    """
+    Applies NFKD unicode normalization and strips combining characters.
+    Used ONLY for the query sent to search3 — NOT for post-filter comparisons.
+    Returns the original text unchanged if it is already ASCII-safe.
+    """
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_safe = "".join(c for c in normalized if not unicodedata.combining(c))
+    return ascii_safe
+
+
+def _post_filter_songs(songs: List[Dict], artist: Optional[str] = None,
+                       album: Optional[str] = None) -> List[Dict]:
+    """
+    Client-side post-filter on a list of song dicts.
+
+    - `artist` matches against song['artist'] (case-insensitive substring).
+    - `album`  matches against song['album']  (case-insensitive substring).
+      NOTE: intentionally NOT song['title'] — album names are metadata fields.
+
+    Returns all songs that satisfy EVERY provided filter.
+    """
+    result = []
+    for s in songs:
+        if artist and artist.lower() not in s.get("artist", "").lower():
+            continue
+        if album and album.lower() not in s.get("album", "").lower():
+            continue
+        result.append(s)
+    return result
+
+
+def _expand_albums_to_songs(album_list: List[Dict], max_albums: int = 2) -> List[Dict]:
+    """
+    Expands a list of album dicts into their constituent tracks via getMusicDirectory.
+    Capped at `max_albums` to avoid latency spikes (architecture decision D4).
+    """
+    conn = get_conn()
+    songs = []
+    for alb in album_list[:max_albums]:
+        try:
+            res = conn.getMusicDirectory(alb["id"])
+            children = res.get("directory", {}).get("child", [])
+            songs.extend([s for s in children if not s.get("isDir")])
+        except Exception as e:
+            logger.warning(f"Album expansion failed for id={alb['id']}: {e}")
+    return songs
 
 
 def _fetch_albums(criteria: str, size: int = 50, genre: str = None) -> List[Dict]:
@@ -1313,11 +1363,100 @@ def assess_playlist_quality(song_ids: List[str]) -> str:
 
 @mcp.tool()
 @log_execution
-def search_music_enriched(query: str, limit: int = 20) -> str:
-    """Standard search with full metadata."""
-    results = _fetch_search_results(query, song_count=limit)
-    formatted = [_format_song(s) for s in results.get('song', [])]
-    return json.dumps(formatted, indent=2)
+def search_music_enriched(
+    query: str,
+    limit: int = 20,
+    artist: Optional[str] = None,
+    album: Optional[str] = None,
+) -> str:
+    """
+    Robust search with multi-strategy fallback. Returns enriched track metadata.
+
+    WHEN to use optional parameters:
+    - `artist`: provide when you know the artist name (e.g., artist='Miles Davis').
+      Results are post-filtered so only tracks from this artist are returned.
+    - `album`: provide when you know the album name (e.g., album='Bitches Brew').
+      Results are post-filtered on the song's album field — NOT the track title.
+
+    Search strategy (cascading, stops at first successful step):
+    1. search3(query, songCount=limit*3, albumCount=2)
+       → if songs found: post-filter by artist/album, return.
+       → if only albums found: expand each album into tracks (max 2), post-filter, return.
+    2. [only if `artist` provided] search3(artist) → post-filter by album.
+    3. [only if `album` provided] search3(album, albumCount=5) → expand albums → return tracks.
+    4. Unicode normalization fallback: retry step 1 with NFKD-normalized query
+       (only if normalized query differs from original).
+    5. Raw fallback: return step-1 results as-is (never returns empty if tracks exist).
+    """
+    fetch_limit = limit * 3
+
+    # --- Step 1: Primary search (songs + albums) ---
+    data = _fetch_search_results(query, song_count=fetch_limit, album_count=2)
+    songs = data.get("song", [])
+    albums = data.get("album", [])
+
+    if songs:
+        filtered = _post_filter_songs(songs, artist=artist, album=album)
+        if filtered:
+            return json.dumps([_format_song(s) for s in filtered[:limit]], indent=2)
+        # Songs found but none passed post-filter → fall through to step 2/3
+
+    elif albums:
+        # Step 1b: Album expansion
+        expanded = _expand_albums_to_songs(albums, max_albums=2)
+        if expanded:
+            filtered = _post_filter_songs(expanded, artist=artist, album=album)
+            candidates = filtered if filtered else expanded
+            return json.dumps([_format_song(s) for s in candidates[:limit]], indent=2)
+
+    # --- Step 2: Artist-seeded search (only when artist param provided) ---
+    if artist:
+        data2 = _fetch_search_results(artist, song_count=fetch_limit, album_count=2)
+        songs2 = data2.get("song", [])
+        albums2 = data2.get("album", [])
+
+        if songs2:
+            filtered2 = _post_filter_songs(songs2, album=album)
+            if filtered2:
+                return json.dumps([_format_song(s) for s in filtered2[:limit]], indent=2)
+
+        if albums2:
+            expanded2 = _expand_albums_to_songs(albums2, max_albums=2)
+            if expanded2:
+                filtered2 = _post_filter_songs(expanded2, album=album)
+                candidates2 = filtered2 if filtered2 else expanded2
+                return json.dumps([_format_song(s) for s in candidates2[:limit]], indent=2)
+
+    # --- Step 3: Album-seeded search (only when album param provided) ---
+    if album:
+        data3 = _fetch_search_results(album, song_count=0, album_count=5)
+        albums3 = data3.get("album", [])
+        if albums3:
+            expanded3 = _expand_albums_to_songs(albums3, max_albums=2)
+            if expanded3:
+                return json.dumps([_format_song(s) for s in expanded3[:limit]], indent=2)
+
+    # --- Step 4: Unicode normalization fallback ---
+    normalized = _normalize_query(query)
+    if normalized != query:
+        logger.info(f"Unicode normalization fallback: '{query}' → '{normalized}'")
+        data4 = _fetch_search_results(normalized, song_count=fetch_limit, album_count=2)
+        songs4 = data4.get("song", [])
+        albums4 = data4.get("album", [])
+
+        if songs4:
+            filtered4 = _post_filter_songs(songs4, artist=artist, album=album)
+            candidates4 = filtered4 if filtered4 else songs4
+            return json.dumps([_format_song(s) for s in candidates4[:limit]], indent=2)
+
+        if albums4:
+            expanded4 = _expand_albums_to_songs(albums4, max_albums=2)
+            if expanded4:
+                return json.dumps([_format_song(s) for s in expanded4[:limit]], indent=2)
+
+    # --- Step 5: Raw fallback (never return empty if data exists) ---
+    raw_songs = songs or []
+    return json.dumps([_format_song(s) for s in raw_songs[:limit]], indent=2)
 
 
 if __name__ == "__main__":
