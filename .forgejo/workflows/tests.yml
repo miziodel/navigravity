@@ -1,0 +1,37 @@
+name: Execute Tests
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - 'dev'  
+  pull_request:
+    branches:
+      - 'main' # Run on pull request to main branch
+
+jobs:
+  build-and-test:
+    runs-on: docker
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        env:
+          NAVIDROME_URL: ${{ secrets.NAVIDROME_URL }}
+          NAVIDROME_USER: ${{ secrets.NAVIDROME_USER }}
+          NAVIDROME_PASS: ${{ secrets.NAVIDROME_PASS }}
+          NAVIDROME_LOG_FILE: ./logs/navidrome_mcp.log
+        run: pytest tests/

@@ -3,7 +3,7 @@
 
 __version__ = "0.2.0"
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import libsonic
 import os
 import sys
@@ -35,10 +35,14 @@ NAVIDROME_PASS = os.getenv("NAVIDROME_PASS")
 if not all([NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASS]):
     raise ValueError("Missing Navidrome configuration. Please ensure NAVIDROME_URL, NAVIDROME_USER, and NAVIDROME_PASS are set in your .env file.")
 
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "sse")
+MCP_HOST = os.getenv("MCP_HOST", "0.0.0.0")
+MCP_PORT = os.getenv("MCP_PORT", "8080")
+
 
 # --- LOGGING SETUP ---
 logger = logging.getLogger("navidrome_mcp")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # File Handler (JSON) - Writable by user running the script
 
@@ -298,7 +302,7 @@ def _expand_albums_to_songs(album_list: List[Dict], max_albums: int = 2) -> List
     return songs
 
 
-def _fetch_albums(criteria: str, size: int = 50, genre: str = None) -> List[Dict]:
+def _fetch_albums(criteria: str, size: int = 50, genre: Optional[str] = None) -> List[Dict]:
     """
     Wrapper for getAlbumList2 to abstract 'ltype' parameter.
     Criteria: 'frequent', 'newest', 'starred', 'random', 'alphabeticalByName', 'byGenre'
@@ -748,7 +752,7 @@ def get_similar_artists(artist_id: Optional[str] = None, artist_name: Optional[s
     Gets similar artists. Provide artist_id OR artist_name (name will be resolved to ID first).
     Uses getArtistInfo2 as a reliable fallback for library similarity.
     """
-    conn = get_conn()
+    conn:libsonic.Connection = get_conn()
     try:
         target_id = artist_id
         
@@ -1150,7 +1154,7 @@ def list_playlists() -> str:
 
 @mcp.tool()
 @log_execution
-def manage_playlist(name: str, operation: str = "get", track_ids: List[str] = None) -> str:
+def manage_playlist(name: str, operation: str = "get", track_ids: Optional[List[str]] = None) -> str:
     """
     Manages playlists and moods.
     
@@ -1460,4 +1464,12 @@ def search_music_enriched(
 
 
 if __name__ == "__main__":
-    mcp.run()
+
+    if MCP_TRANSPORT == 'sse':
+        mcp.run(transport=MCP_TRANSPORT, host=MCP_HOST, port=int(MCP_PORT))
+
+    elif MCP_TRANSPORT == 'stdio':
+        mcp.run(transport=MCP_TRANSPORT)
+
+    else:
+        raise ValueError(f"Unexpected value for MCP_TRANSPORT, must be 'stdio' or 'sse'.")

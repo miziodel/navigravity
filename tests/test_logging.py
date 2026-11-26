@@ -6,19 +6,19 @@ from unittest.mock import MagicMock
 
 # --- MOCK DEPENDENCIES BEFORE IMPORT ---
 # We mock mcp and libsonic because they might not be installed in the test env
-mcp_mock = MagicMock()
 fastmcp_mock = MagicMock()
-mcp_mock.server.fastmcp.FastMCP = MagicMock(return_value=fastmcp_mock)
+fastmcp_instance_mock = MagicMock()
+fastmcp_mock.FastMCP = MagicMock(return_value=fastmcp_instance_mock)
+
 # Ensure the decorator works as a simple pass-through or capture
 def tool_decorator(name=None, description=None):
     def decorator(func):
         return func
     return decorator
-fastmcp_mock.tool = MagicMock(side_effect=tool_decorator)
 
-sys.modules["mcp"] = mcp_mock
-sys.modules["mcp.server"] = mcp_mock.server
-sys.modules["mcp.server.fastmcp"] = mcp_mock.server.fastmcp
+fastmcp_instance_mock.tool = MagicMock(side_effect=tool_decorator)
+
+sys.modules["fastmcp"] = fastmcp_mock
 
 libsonic_mock = MagicMock()
 sys.modules["libsonic"] = libsonic_mock

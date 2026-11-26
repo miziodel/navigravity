@@ -1,0 +1,53 @@
+name: Build Docker Image
+
+on:
+  workflow_dispatch:
+      inputs:
+        tag:
+          description: 'Manual tagging'
+          required: false
+          type: string  
+
+
+jobs:
+  build:
+    runs-on: docker
+
+    steps:
+      # Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # required to get Tag
+
+      - name: Extracting Tag
+        run: |
+          # Check tag
+          if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+            TAG=$(git describe --tags --exact-match HEAD)
+
+          elif [ -n "${{ inputs.tag }}" ]; then
+            TAG=${{ inputs.tag }}
+
+          else
+            echo "❌ Error : Building requires a tag."
+            exit 1
+          fi
+
+          CLEAN_TAG=$(echo "$TAG" | tr '[:upper:]' '[:lower:]')
+          echo "image_tag=${CLEAN_TAG}" >> $GITHUB_ENV
+          echo "✅ Building with tag : ${CLEAN_TAG}"
+
+      - name: Login to Forgejo Container Registry
+        uses: https://github.com/docker/login-action@v3
+        with:
+          registry: forge.alpi-lab.fr/
+          username: ship_builder
+          password: ${{ secrets.SHIP_BUILDER }}
+
+      - name: Building and Pushing
+        uses: https://github.com/docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{vars.REGISTRY_URL}}/${{vars.REGISTRY_NAMESPACE}}/mcp-navigravity:${{ env.image_tag }}

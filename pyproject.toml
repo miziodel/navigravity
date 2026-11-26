@@ -7,23 +7,35 @@ name = "navigravity"
 version = "0.2.0"
 description = "NaviGravity: An Agentic MCP Server for Navidrome music curation."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
   {name = "Maurizio Delmonte"}
 ]
 dependencies = [
-    "mcp[cli]",
-    "py-sonic",
-    "python-dotenv",
-    "python-json-logger"
+    "fastmcp>=4.2.2",
+    "py-sonic>=1.2.0",
+    "python-dotenv>=1.2.4",
+    "python-json-logger>=4.2.0"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "pytest-mock"
+    "pytest-mock",
+    "ruff>=0.3.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "mypy>=1.8.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=navidrome_mcp_server --cov-report=term-missing --cov-report=html"

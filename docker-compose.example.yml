@@ -1,0 +1,9 @@
+services:
+  navigravity:
+    build: .
+    container_name: navigravity
+    env_file:
+      - .env
+    restart: unless-stopped 
+    ports:
+      - "8080:$MCP_PORT" 
